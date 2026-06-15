@@ -1,4 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
 
 const API_KEY = import.meta.env.VITE_FOOTBALL_API_KEY;
 const WC_ID = 2000;
@@ -61,14 +67,11 @@ const AVATAR_COLORS = [
 ];
 
 const getInitials = n => n.split(" ").map(w => w[0]).join("").toUpperCase().slice(0,2);
-const STORE_KEY = "wc2026_v3";
-const load = () => { try { const r = localStorage.getItem(STORE_KEY); return r ? JSON.parse(r) : {}; } catch { return {}; } };
-const save = d => { try { localStorage.setItem(STORE_KEY, JSON.stringify(d)); } catch {} };
 const fc = r => r === "W" ? "#00d46a" : r === "D" ? "#f59e0b" : "#ef4444";
 
 export default function App() {
   const [screen, setScreen] = useState("home");
-  const [participants, setParticipants] = useState(() => load().participants || []);
+  const [participants, setParticipants] = useState([]);
   const [standings, setStandings] = useState({});
   const [fixtures, setFixtures] = useState([]);
   const [liveMatches, setLiveMatches] = useState([]);
@@ -87,24 +90,45 @@ export default function App() {
   const [expanded, setExpanded] = useState(null);
   const liveTimer = useRef(null);
 
-  useEffect(() => { save({ participants }); }, [participants]);
+  // Load participants from Supabase
+  const loadParticipants = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("participants")
+      .select("*")
+      .order("created_at", { ascending: true });
+    if (!error && data) {
+      setParticipants(data.map(p => ({
+        ...p,
+        teams: typeof p.teams === "string" ? JSON.parse(p.teams) : p.teams
+      })));
+    }
+  }, []);
+
+  // Real time subscription
+  useEffect(() => {
+    loadParticipants();
+    const channel = supabase
+      .channel("participants")
+      .on("postgres_changes", { event: "*", schema: "public", table: "participants" }, () => {
+        loadParticipants();
+      })
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, [loadParticipants]);
 
   const fetchFromAPI = useCallback(async (path) => {
-  const res = await fetch(`/api/football?path=${encodeURIComponent(path)}`);
+    const res = await fetch(`/api/football?path=${encodeURIComponent(path)}`);
     if (!res.ok) throw new Error(`API error ${res.status}`);
     return res.json();
   }, []);
 
   const fetchAll = useCallback(async () => {
-    if (!API_KEY) { setApiError(true); return; }
     setLoading(true);
     try {
       const [standingsData, matchesData] = await Promise.all([
         fetchFromAPI(`competitions/${WC_ID}/standings`),
         fetchFromAPI(`competitions/${WC_ID}/matches`),
       ]);
-
-      // Parse standings
       const newStandings = {};
       if (standingsData.standings) {
         standingsData.standings.forEach(stage => {
@@ -119,7 +143,6 @@ export default function App() {
                 ga: row.goalsAgainst,
                 gd: row.goalDifference,
                 pts: row.points,
-                group: stage.group?.replace("GROUP_","") || "",
                 form: (row.form || "").split(",").filter(Boolean).slice(-5),
               };
             });
@@ -127,17 +150,15 @@ export default function App() {
         });
       }
       setStandings(newStandings);
-
-      // Parse matches
       if (matchesData.matches) {
         const all = matchesData.matches;
-        const live = all.filter(m => ["IN_PLAY","PAUSED","HALFTIME"].includes(m.status));
-        const upcoming = all.filter(m => m.status === "TIMED" || m.status === "SCHEDULED");
-        const finished = all.filter(m => m.status === "FINISHED");
-        const knockout = all.filter(m => m.stage && !m.stage.includes("GROUP"));
-        setLiveMatches(live);
-        setFixtures([...live, ...upcoming.slice(0,20), ...finished.slice(-10)]);
-        setKnockoutMatches(knockout);
+        setLiveMatches(all.filter(m => ["IN_PLAY","PAUSED","HALFTIME"].includes(m.status)));
+        setFixtures([
+          ...all.filter(m => ["IN_PLAY","PAUSED","HALFTIME"].includes(m.status)),
+          ...all.filter(m => m.status === "TIMED" || m.status === "SCHEDULED").slice(0,20),
+          ...all.filter(m => m.status === "FINISHED").slice(-10),
+        ]);
+        setKnockoutMatches(all.filter(m => m.stage && !m.stage.includes("GROUP")));
       }
       setApiError(false);
       setLastUpdated(new Date().toLocaleTimeString("en-GB"));
@@ -161,26 +182,38 @@ export default function App() {
 
   const takenTeams = participants.flatMap(p => p.teams || []);
   const availableTeams = WC_TEAMS.filter(t => !takenTeams.includes(t.name));
-
   const toggleTeam = name => setSelectedTeams(p => p.includes(name) ? p.filter(t => t !== name) : [...p, name]);
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     if (!newName.trim()) { showToast("Enter your name", "error"); return; }
     if (!selectedTeams.length) { showToast("Pick at least one team!", "error"); return; }
     if (participants.find(p => p.name.toLowerCase() === newName.trim().toLowerCase())) {
       showToast("Name already taken!", "error"); return;
     }
     const color = AVATAR_COLORS[participants.length % AVATAR_COLORS.length];
-    setParticipants(p => [...p, { id: Date.now(), name: newName.trim(), teams: selectedTeams, color }]);
-    setNewName(""); setSelectedTeams([]);
+    const { error } = await supabase.from("participants").insert([{
+      name: newName.trim(),
+      teams: JSON.stringify(selectedTeams),
+      color,
+    }]);
+    if (error) { showToast("Error saving — try again", "error"); return; }
+    setNewName("");
+    setSelectedTeams([]);
     showToast(`Welcome ${newName.trim()}! 🎉`);
     setScreen("leaderboard");
   };
 
+  const handleRemove = async (id) => {
+    await supabase.from("participants").delete().eq("id", id);
+    showToast("Removed");
+  };
+
   const enriched = participants.map(p => {
-    const teamData = p.teams.map(t => standings[t] || { pts:0, played:0, won:0, drawn:0, lost:0, gf:0, ga:0, gd:0 });
+    const teams = typeof p.teams === "string" ? JSON.parse(p.teams) : p.teams;
+    const teamData = teams.map(t => standings[t] || { pts:0, played:0, won:0, drawn:0, lost:0, gf:0, ga:0, gd:0 });
     return {
       ...p,
+      teams,
       totalPts: teamData.reduce((s,t) => s + t.pts, 0),
       totalWon: teamData.reduce((s,t) => s + t.won, 0),
       totalGd: teamData.reduce((s,t) => s + (t.gd||0), 0),
@@ -191,15 +224,6 @@ export default function App() {
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.teams.some(t => t.toLowerCase().includes(searchTerm.toLowerCase()))
   );
-
-  const visibleTeams = WC_TEAMS.filter(t => {
-    const ok = !takenTeams.includes(t.name) || selectedTeams.includes(t.name);
-    const grp = groupFilter === "ALL" || t.group === groupFilter;
-    const sch = t.name.toLowerCase().includes(teamSearch.toLowerCase());
-    return ok && grp && sch;
-  });
-
-  const groups = ["ALL","A","B","C","D","E","F","G","H","I","J","K","L"];
 
   const getRank = i => {
     if (i===0) return { emoji:"🥇", color:"#ffd700" };
@@ -222,13 +246,22 @@ export default function App() {
 
   const getFlag = name => WC_TEAMS.find(t => t.name === name || name?.includes(t.name))?.flag || "🏳️";
 
+  const visibleTeams = WC_TEAMS.filter(t => {
+    const ok = !takenTeams.includes(t.name) || selectedTeams.includes(t.name);
+    const grp = groupFilter === "ALL" || t.group === groupFilter;
+    const sch = t.name.toLowerCase().includes(teamSearch.toLowerCase());
+    return ok && grp && sch;
+  });
+
+  const groups = ["ALL","A","B","C","D","E","F","G","H","I","J","K","L"];
+
   const knockoutRounds = [
-    { key: "ROUND_OF_32", label: "Round of 32" },
-    { key: "ROUND_OF_16", label: "Round of 16" },
-    { key: "QUARTER_FINALS", label: "Quarter Finals" },
-    { key: "SEMI_FINALS", label: "Semi Finals" },
-    { key: "THIRD_PLACE", label: "3rd Place" },
-    { key: "FINAL", label: "Final" },
+    { key:"ROUND_OF_32", label:"Round of 32" },
+    { key:"ROUND_OF_16", label:"Round of 16" },
+    { key:"QUARTER_FINALS", label:"Quarter Finals" },
+    { key:"SEMI_FINALS", label:"Semi Finals" },
+    { key:"THIRD_PLACE", label:"3rd Place" },
+    { key:"FINAL", label:"Final" },
   ];
 
   const S = {
@@ -257,10 +290,10 @@ export default function App() {
         .ch { border-radius:8px; padding:3px 8px; font-size:12px; font-weight:600; display:inline-flex; align-items:center; gap:4px; background:rgba(255,255,255,0.07); color:#a0b8c8; white-space:nowrap; }
         .live-pulse { display:inline-block; width:8px; height:8px; border-radius:50%; background:#ef4444; animation:pulse 1s infinite; }
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
-        input::placeholder { color:#4a6a7a; }
         .match-card { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.07); border-radius:12px; padding:12px 16px; margin-bottom:8px; }
         .match-card.live { border-color:rgba(239,68,68,0.4); background:rgba(239,68,68,0.05); }
         .ko-match { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:10px 12px; min-width:180px; }
+        input::placeholder { color:#4a6a7a; }
       `}</style>
 
       <div style={{ position:"fixed", inset:0, opacity:0.035, pointerEvents:"none", backgroundImage:"repeating-linear-gradient(0deg,transparent,transparent 40px,#00d46a 40px,#00d46a 41px)", zIndex:0 }} />
@@ -271,7 +304,6 @@ export default function App() {
         </div>
       )}
 
-      {/* LIVE SCORES BAR */}
       {liveMatches.length > 0 && (
         <div style={{ background:"rgba(239,68,68,0.12)", borderBottom:"1px solid rgba(239,68,68,0.3)", padding:"8px 16px", overflowX:"auto", whiteSpace:"nowrap" }}>
           <span style={{ fontSize:11, fontWeight:700, color:"#ef4444", marginRight:12 }}><span className="live-pulse" style={{ marginRight:6 }} />LIVE</span>
@@ -381,12 +413,12 @@ export default function App() {
               <h2 style={{ fontSize:19, fontWeight:700 }}>Fixtures & Results</h2>
               <button className="nb" style={{ fontSize:12, padding:"7px 12px" }} onClick={fetchAll}>🔄 Refresh</button>
             </div>
-            {apiError && <div style={{ ...S.card, padding:"24px", textAlign:"center", color:"#f59e0b", marginBottom:14 }}>⚠️ Could not load live data. Check your API key in .env</div>}
+            {apiError && <div style={{ ...S.card, padding:"24px", textAlign:"center", color:"#f59e0b", marginBottom:14 }}>⚠️ Could not load live data</div>}
             {fixtures.length === 0 && !apiError && <div style={{ textAlign:"center", color:"#6b9aad", padding:"40px 0" }}>Loading fixtures...</div>}
             {fixtures.map(m => {
               const isLive = ["IN_PLAY","PAUSED","HALFTIME"].includes(m.status);
               const isDone = m.status === "FINISHED";
-              const owners = (name) => participants.filter(p => p.teams.some(t => name?.includes(t)));
+              const owners = name => participants.filter(p => p.teams.some(t => name?.includes(t)));
               return (
                 <div key={m.id} className={`match-card ${isLive?"live":""}`}>
                   <div style={{ fontSize:11, color:isLive?"#ef4444":"#6b9aad", fontWeight:700, marginBottom:8 }}>
@@ -407,11 +439,10 @@ export default function App() {
                       </div>
                     </div>
                     <div style={{ textAlign:"center", padding:"0 16px" }}>
-                      {(isLive || isDone) ? (
-                        <div style={{ fontSize:22, fontWeight:800, color:"#00d46a" }}>{m.score?.fullTime?.home ?? 0} – {m.score?.fullTime?.away ?? 0}</div>
-                      ) : (
-                        <div style={{ fontSize:16, fontWeight:700, color:"#6b9aad" }}>vs</div>
-                      )}
+                      {(isLive || isDone)
+                        ? <div style={{ fontSize:22, fontWeight:800, color:"#00d46a" }}>{m.score?.fullTime?.home ?? 0} – {m.score?.fullTime?.away ?? 0}</div>
+                        : <div style={{ fontSize:16, fontWeight:700, color:"#6b9aad" }}>vs</div>
+                      }
                     </div>
                     <div style={{ flex:1, textAlign:"right" }}>
                       <div style={{ display:"flex", alignItems:"center", gap:8, justifyContent:"flex-end" }}>
@@ -447,7 +478,7 @@ export default function App() {
                 <div style={{ fontWeight:600, marginBottom:6 }}>No entrants yet</div>
                 <button style={{ ...S.btn, maxWidth:200, margin:"0 auto" }} onClick={() => setScreen("register")}>Join Now</button>
               </div>
-            ) : filtered.map((p, i) => {
+            ) : filtered.map((p,i) => {
               const isExp = expanded === p.id;
               return (
                 <div key={p.id} style={{ ...S.row, border:i===0?"1px solid rgba(255,215,0,0.25)":"1px solid rgba(255,255,255,0.07)" }} onClick={() => setExpanded(isExp?null:p.id)}>
@@ -522,7 +553,7 @@ export default function App() {
                       </tr>
                     </thead>
                     <tbody>
-                      {groupTeams.map((t, ti) => {
+                      {groupTeams.map((t,ti) => {
                         const owners = participants.filter(p => p.teams.includes(t.name));
                         return (
                           <tr key={t.name} style={{ borderTop:"1px solid rgba(255,255,255,0.05)", background:owners.length?"rgba(0,212,106,0.05)":"transparent" }}>
@@ -548,7 +579,7 @@ export default function App() {
           </div>
         )}
 
-        {/* KNOCKOUT BRACKET */}
+        {/* KNOCKOUT */}
         {screen === "knockout" && (
           <div>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18 }}>
@@ -559,48 +590,45 @@ export default function App() {
               <div style={{ ...S.card, padding:"40px 24px", textAlign:"center" }}>
                 <div style={{ fontSize:44, marginBottom:12 }}>🏆</div>
                 <div style={{ fontWeight:600, marginBottom:8, fontSize:16 }}>Knockout stage not started yet</div>
-                <div style={{ color:"#6b9aad", fontSize:14 }}>The bracket will appear here once the group stage is complete</div>
+                <div style={{ color:"#6b9aad", fontSize:14 }}>The bracket will appear once the group stage is complete</div>
               </div>
-            ) : (
-              knockoutRounds.map(({ key, label }) => {
-                const roundMatches = knockoutMatches.filter(m => m.stage === key);
-                if (!roundMatches.length) return null;
-                return (
-                  <div key={key} style={{ marginBottom:24 }}>
-                    <p style={{ fontSize:13, fontWeight:700, color:"#00d46a", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:12 }}>{label}</p>
-                    <div style={{ display:"flex", flexWrap:"wrap", gap:10 }}>
-                      {roundMatches.map(m => {
-                        const isLive = ["IN_PLAY","PAUSED","HALFTIME"].includes(m.status);
-                        const isDone = m.status === "FINISHED";
-                        const homeOwners = participants.filter(p => p.teams.some(t => m.homeTeam?.name?.includes(t)));
-                        const awayOwners = participants.filter(p => p.teams.some(t => m.awayTeam?.name?.includes(t)));
-                        return (
-                          <div key={m.id} className="ko-match" style={{ border: isLive ? "1px solid rgba(239,68,68,0.4)" : "1px solid rgba(255,255,255,0.08)" }}>
-                            <div style={{ fontSize:10, color:isLive?"#ef4444":"#6b9aad", fontWeight:700, marginBottom:8 }}>
-                              {isLive && <span className="live-pulse" style={{ marginRight:4 }} />}
-                              {matchStatusLabel(m)}
-                            </div>
-                            {[{ team:m.homeTeam, score:m.score?.fullTime?.home, owners:homeOwners },
-                              { team:m.awayTeam, score:m.score?.fullTime?.away, owners:awayOwners }].map((side, si) => (
-                              <div key={si} style={{ display:"flex", alignItems:"center", gap:8, padding:"4px 0", borderBottom:si===0?"1px solid rgba(255,255,255,0.06)":"none" }}>
-                                <span style={{ fontSize:16 }}>{getFlag(side.team?.name)}</span>
-                                <div style={{ flex:1, minWidth:0 }}>
-                                  <div style={{ fontSize:13, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{side.team?.name || "TBD"}</div>
-                                  <div style={{ display:"flex", gap:3, marginTop:2 }}>
-                                    {side.owners.map(o => <span key={o.id} style={{ background:o.color, color:"#fff", fontSize:8, fontWeight:700, padding:"1px 4px", borderRadius:99 }}>{getInitials(o.name)}</span>)}
-                                  </div>
-                                </div>
-                                {(isLive || isDone) && <span style={{ fontWeight:800, color:"#00d46a", fontSize:16, flexShrink:0 }}>{side.score ?? 0}</span>}
-                              </div>
-                            ))}
+            ) : knockoutRounds.map(({ key, label }) => {
+              const roundMatches = knockoutMatches.filter(m => m.stage === key);
+              if (!roundMatches.length) return null;
+              return (
+                <div key={key} style={{ marginBottom:24 }}>
+                  <p style={{ fontSize:13, fontWeight:700, color:"#00d46a", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:12 }}>{label}</p>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:10 }}>
+                    {roundMatches.map(m => {
+                      const isLive = ["IN_PLAY","PAUSED","HALFTIME"].includes(m.status);
+                      const isDone = m.status === "FINISHED";
+                      const homeOwners = participants.filter(p => p.teams.some(t => m.homeTeam?.name?.includes(t)));
+                      const awayOwners = participants.filter(p => p.teams.some(t => m.awayTeam?.name?.includes(t)));
+                      return (
+                        <div key={m.id} className="ko-match" style={{ border:isLive?"1px solid rgba(239,68,68,0.4)":"1px solid rgba(255,255,255,0.08)" }}>
+                          <div style={{ fontSize:10, color:isLive?"#ef4444":"#6b9aad", fontWeight:700, marginBottom:8 }}>
+                            {isLive && <span className="live-pulse" style={{ marginRight:4 }} />}
+                            {matchStatusLabel(m)}
                           </div>
-                        );
-                      })}
-                    </div>
+                          {[{team:m.homeTeam,score:m.score?.fullTime?.home,owners:homeOwners},{team:m.awayTeam,score:m.score?.fullTime?.away,owners:awayOwners}].map((side,si) => (
+                            <div key={si} style={{ display:"flex", alignItems:"center", gap:8, padding:"4px 0", borderBottom:si===0?"1px solid rgba(255,255,255,0.06)":"none" }}>
+                              <span style={{ fontSize:16 }}>{getFlag(side.team?.name)}</span>
+                              <div style={{ flex:1, minWidth:0 }}>
+                                <div style={{ fontSize:13, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{side.team?.name || "TBD"}</div>
+                                <div style={{ display:"flex", gap:3, marginTop:2 }}>
+                                  {side.owners.map(o => <span key={o.id} style={{ background:o.color, color:"#fff", fontSize:8, fontWeight:700, padding:"1px 4px", borderRadius:99 }}>{getInitials(o.name)}</span>)}
+                                </div>
+                              </div>
+                              {(isLive||isDone) && <span style={{ fontWeight:800, color:"#00d46a", fontSize:16, flexShrink:0 }}>{side.score??0}</span>}
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })
-            )}
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -654,7 +682,7 @@ export default function App() {
               </div>
             )}
             <button style={{ ...S.btn, opacity:(!newName.trim()||!selectedTeams.length)?0.4:1 }} onClick={handleRegister} disabled={!newName.trim()||!selectedTeams.length}>
-              🎉 Claim My {selectedTeams.length > 1 ? `${selectedTeams.length} Teams` : selectedTeams.length === 1 ? "Team" : "Teams"}
+              🎉 Claim My {selectedTeams.length > 1?`${selectedTeams.length} Teams`:selectedTeams.length===1?"Team":"Teams"}
             </button>
             {participants.length > 0 && (
               <div style={{ marginTop:24, paddingTop:20, borderTop:"1px solid rgba(255,255,255,0.08)" }}>
@@ -679,7 +707,7 @@ export default function App() {
         {screen === "admin" && (
           <div style={{ ...S.card, padding:"24px 20px" }}>
             <h2 style={{ fontSize:19, fontWeight:700, marginBottom:4 }}>⚙️ Admin Panel</h2>
-            <p style={{ color:"#6b9aad", marginBottom:20, fontSize:13 }}>Manage participants and settings</p>
+            <p style={{ color:"#6b9aad", marginBottom:20, fontSize:13 }}>Manage participants</p>
             {!adminUnlocked ? (
               <div>
                 <label style={S.lbl}>Admin PIN</label>
@@ -690,7 +718,8 @@ export default function App() {
               <div>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
                   <p style={{ fontSize:14, fontWeight:700 }}>Participants ({participants.length})</p>
-                  <button style={{ background:"rgba(239,68,68,0.12)", border:"1px solid rgba(239,68,68,0.3)", color:"#ef4444", padding:"6px 12px", borderRadius:8, cursor:"pointer", fontSize:12, fontWeight:600 }} onClick={() => { if(window.confirm("Clear ALL?")){ setParticipants([]); showToast("Cleared"); }}}>🗑️ Clear All</button>
+                  <button style={{ background:"rgba(239,68,68,0.12)", border:"1px solid rgba(239,68,68,0.3)", color:"#ef4444", padding:"6px 12px", borderRadius:8, cursor:"pointer", fontSize:12, fontWeight:600 }}
+                    onClick={async () => { if(window.confirm("Clear ALL?")){await supabase.from("participants").delete().neq("id",0);showToast("Cleared");}}}>🗑️ Clear All</button>
                 </div>
                 {participants.length === 0
                   ? <div style={{ textAlign:"center", color:"#6b9aad", padding:"28px 0", fontSize:14 }}>No participants yet</div>
@@ -704,7 +733,7 @@ export default function App() {
                             {p.teams.map(t => { const info=WC_TEAMS.find(x=>x.name===t); return <span key={t} className="ch">{info?.flag} {t}</span>; })}
                           </div>
                         </div>
-                        <button onClick={e => { e.stopPropagation(); setParticipants(prev=>prev.filter(x=>x.id!==p.id)); showToast("Removed"); }} style={{ background:"rgba(239,68,68,0.12)", border:"1px solid rgba(239,68,68,0.25)", color:"#ef4444", padding:"5px 10px", borderRadius:8, cursor:"pointer", fontSize:12, fontWeight:600, flexShrink:0 }}>Remove</button>
+                        <button onClick={e => { e.stopPropagation(); handleRemove(p.id); }} style={{ background:"rgba(239,68,68,0.12)", border:"1px solid rgba(239,68,68,0.25)", color:"#ef4444", padding:"5px 10px", borderRadius:8, cursor:"pointer", fontSize:12, fontWeight:600, flexShrink:0 }}>Remove</button>
                       </div>
                     </div>
                   ))
