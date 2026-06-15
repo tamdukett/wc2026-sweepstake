@@ -90,9 +90,7 @@ export default function App() {
   useEffect(() => { save({ participants }); }, [participants]);
 
   const fetchFromAPI = useCallback(async (path) => {
-    const res = await fetch(`/api/football?path=${encodeURIComponent(path)}`);const res = await fetch(`/api/v4/${path}`, {
-      headers: { "X-Auth-Token": API_KEY }
-    });
+  const res = await fetch(`/api/football?path=${encodeURIComponent(path)}`);
     if (!res.ok) throw new Error(`API error ${res.status}`);
     return res.json();
   }, []);
