@@ -90,7 +90,6 @@ export default function App() {
   const [expanded, setExpanded] = useState(null);
   const liveTimer = useRef(null);
 
-  // Load participants from Supabase
   const loadParticipants = useCallback(async () => {
     const { data, error } = await supabase
       .from("participants")
@@ -104,12 +103,15 @@ export default function App() {
     }
   }, []);
 
-  // Real time subscription
   useEffect(() => {
     loadParticipants();
     const channel = supabase
-      .channel("participants")
-      .on("postgres_changes", { event: "*", schema: "public", table: "participants" }, () => {
+      .channel("participants-changes")
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "participants"
+      }, () => {
         loadParticipants();
       })
       .subscribe();
@@ -196,7 +198,11 @@ export default function App() {
       teams: JSON.stringify(selectedTeams),
       color,
     }]);
-    if (error) { showToast("Error saving — try again", "error"); return; }
+    if (error) {
+      console.error(error);
+      showToast("Error saving — try again", "error");
+      return;
+    }
     setNewName("");
     setSelectedTeams([]);
     showToast(`Welcome ${newName.trim()}! 🎉`);
@@ -336,7 +342,6 @@ export default function App() {
           <button className={`nb ${screen==="admin"?"on":""}`} style={{ marginLeft:"auto" }} onClick={() => setScreen("admin")}>⚙️</button>
         </div>
 
-        {/* HOME */}
         {screen === "home" && (
           <div>
             <div style={{ ...S.card, padding:"28px 24px", textAlign:"center", marginBottom:14 }}>
@@ -406,7 +411,6 @@ export default function App() {
           </div>
         )}
 
-        {/* FIXTURES */}
         {screen === "fixtures" && (
           <div>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18 }}>
@@ -439,10 +443,9 @@ export default function App() {
                       </div>
                     </div>
                     <div style={{ textAlign:"center", padding:"0 16px" }}>
-                      {(isLive || isDone)
+                      {(isLive||isDone)
                         ? <div style={{ fontSize:22, fontWeight:800, color:"#00d46a" }}>{m.score?.fullTime?.home ?? 0} – {m.score?.fullTime?.away ?? 0}</div>
-                        : <div style={{ fontSize:16, fontWeight:700, color:"#6b9aad" }}>vs</div>
-                      }
+                        : <div style={{ fontSize:16, fontWeight:700, color:"#6b9aad" }}>vs</div>}
                     </div>
                     <div style={{ flex:1, textAlign:"right" }}>
                       <div style={{ display:"flex", alignItems:"center", gap:8, justifyContent:"flex-end" }}>
@@ -462,7 +465,6 @@ export default function App() {
           </div>
         )}
 
-        {/* LEADERBOARD */}
         {screen === "leaderboard" && (
           <div>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
@@ -531,7 +533,6 @@ export default function App() {
           </div>
         )}
 
-        {/* GROUP STANDINGS */}
         {screen === "standings" && (
           <div>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18 }}>
@@ -579,7 +580,6 @@ export default function App() {
           </div>
         )}
 
-        {/* KNOCKOUT */}
         {screen === "knockout" && (
           <div>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18 }}>
@@ -632,7 +632,6 @@ export default function App() {
           </div>
         )}
 
-        {/* REGISTER */}
         {screen === "register" && (
           <div style={{ ...S.card, padding:"24px 20px" }}>
             <h2 style={{ fontSize:19, fontWeight:700, marginBottom:4 }}>Join the Sweepstake</h2>
@@ -682,7 +681,7 @@ export default function App() {
               </div>
             )}
             <button style={{ ...S.btn, opacity:(!newName.trim()||!selectedTeams.length)?0.4:1 }} onClick={handleRegister} disabled={!newName.trim()||!selectedTeams.length}>
-              🎉 Claim My {selectedTeams.length > 1?`${selectedTeams.length} Teams`:selectedTeams.length===1?"Team":"Teams"}
+              🎉 Claim My {selectedTeams.length>1?`${selectedTeams.length} Teams`:selectedTeams.length===1?"Team":"Teams"}
             </button>
             {participants.length > 0 && (
               <div style={{ marginTop:24, paddingTop:20, borderTop:"1px solid rgba(255,255,255,0.08)" }}>
@@ -703,7 +702,6 @@ export default function App() {
           </div>
         )}
 
-        {/* ADMIN */}
         {screen === "admin" && (
           <div style={{ ...S.card, padding:"24px 20px" }}>
             <h2 style={{ fontSize:19, fontWeight:700, marginBottom:4 }}>⚙️ Admin Panel</h2>
