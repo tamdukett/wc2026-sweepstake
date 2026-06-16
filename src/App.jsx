@@ -708,8 +708,8 @@ export default function App() {
             {!adminUnlocked ? (
               <div>
                 <label style={S.lbl}>Admin PIN</label>
-                <input style={S.inp} type="password" placeholder="Enter PIN (default: 1234)" value={adminPin} onChange={e => setAdminPin(e.target.value)} onKeyDown={e => { if(e.key==="Enter"){if(adminPin==="1234")setAdminUnlocked(true);else showToast("Wrong PIN","error");}}} />
-                <button style={{ ...S.btn, marginTop:14 }} onClick={() => { if(adminPin==="1234")setAdminUnlocked(true);else showToast("Wrong PIN","error"); }}>Unlock</button>
+                <input style={S.inp} type="password" placeholder="Enter PIN (default: 1234)" value={adminPin} onChange={e => setAdminPin(e.target.value)} onKeyDown={e => { if(e.key==="Enter"){if(adminPin==="4429")setAdminUnlocked(true);else showToast("Wrong PIN","error");}}} />
+                <button style={{ ...S.btn, marginTop:14 }} onClick={() => { if(adminPin==="4429")setAdminUnlocked(true);else showToast("Wrong PIN","error"); }}>Unlock</button>
               </div>
             ) : (
               <div>
