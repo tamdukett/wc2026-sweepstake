@@ -326,9 +326,8 @@ export default function App() {
 
       <div style={S.inner}>
         <div style={{ textAlign:"center", padding:"36px 0 24px" }}>
-          <div style={{ fontSize:44, marginBottom:6 }}>🏆</div>
-          <h1 style={{ fontSize:24, fontWeight:800, background:"linear-gradient(135deg,#fff 30%,#00d46a)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", marginBottom:6 }}>World Cup 2026</h1>
-          <p style={{ color:"#6b9aad", fontSize:13 }}>
+  <img src="/logo.png" alt="Progressive Lets World Cup 2026" style={{ width:220, marginBottom:16 }} />
+  <p style={{ color:"#6b9aad", fontSize:13 }}>
             Office Sweepstake · {participants.length} entrant{participants.length!==1?"s":""} · {availableTeams.length} teams left
             {loading && <span style={{ marginLeft:8, color:"#f59e0b" }}>⟳ updating...</span>}
             {apiError && <span style={{ marginLeft:8, color:"#ef4444" }}>⚠ API unavailable</span>}
