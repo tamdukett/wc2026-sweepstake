@@ -88,6 +88,7 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [expanded, setExpanded] = useState(null);
+  const [editingId, setEditingId] = useState(null);
   const liveTimer = useRef(null);
 
   const loadParticipants = useCallback(async () => {
@@ -187,27 +188,40 @@ export default function App() {
   const toggleTeam = name => setSelectedTeams(p => p.includes(name) ? p.filter(t => t !== name) : [...p, name]);
 
   const handleRegister = async () => {
-    if (!newName.trim()) { showToast("Enter your name", "error"); return; }
-    if (!selectedTeams.length) { showToast("Pick at least one team!", "error"); return; }
-    if (participants.find(p => p.name.toLowerCase() === newName.trim().toLowerCase())) {
-      showToast("Name already taken!", "error"); return;
-    }
-    const color = AVATAR_COLORS[participants.length % AVATAR_COLORS.length];
-    const { error } = await supabase.from("participants").insert([{
-      name: newName.trim(),
-      teams: JSON.stringify(selectedTeams),
-      color,
-    }]);
-    if (error) {
-      console.error(error);
-      showToast("Error saving — try again", "error");
-      return;
-    }
+  if (!newName.trim()) { showToast("Enter your name", "error"); return; }
+  if (!selectedTeams.length) { showToast("Pick at least one team!", "error"); return; }
+
+  if (editingId) {
+    // Update existing participant
+    const { error } = await supabase
+      .from("participants")
+      .update({ teams: JSON.stringify(selectedTeams) })
+      .eq("id", editingId);
+    if (error) { console.error(error); showToast("Error saving — try again", "error"); return; }
+    setEditingId(null);
     setNewName("");
     setSelectedTeams([]);
-    showToast(`Welcome ${newName.trim()}! 🎉`);
+    showToast(`Teams updated! 🎉`);
     setScreen("leaderboard");
-  };
+    return;
+  }
+
+  // New participant
+  if (participants.find(p => p.name.toLowerCase() === newName.trim().toLowerCase())) {
+    showToast("Name already taken!", "error"); return;
+  }
+  const color = AVATAR_COLORS[participants.length % AVATAR_COLORS.length];
+  const { error } = await supabase.from("participants").insert([{
+    name: newName.trim(),
+    teams: JSON.stringify(selectedTeams),
+    color,
+  }]);
+  if (error) { console.error(error); showToast("Error saving — try again", "error"); return; }
+  setNewName("");
+  setSelectedTeams([]);
+  showToast(`Welcome ${newName.trim()}! 🎉`);
+  setScreen("leaderboard");
+};
 
   const handleRemove = async (id) => {
     await supabase.from("participants").delete().eq("id", id);
@@ -680,22 +694,29 @@ export default function App() {
               </div>
             )}
             <button style={{ ...S.btn, opacity:(!newName.trim()||!selectedTeams.length)?0.4:1 }} onClick={handleRegister} disabled={!newName.trim()||!selectedTeams.length}>
-              🎉 Claim My {selectedTeams.length>1?`${selectedTeams.length} Teams`:selectedTeams.length===1?"Team":"Teams"}
+              {editingId ? `✏️ Update My Teams (${selectedTeams.length})` : `🎉 Claim My ${selectedTeams.length>1?`${selectedTeams.length} Teams`:selectedTeams.length===1?"Team":"Teams"}`}
             </button>
             {participants.length > 0 && (
               <div style={{ marginTop:24, paddingTop:20, borderTop:"1px solid rgba(255,255,255,0.08)" }}>
                 <p style={{ fontSize:12, fontWeight:700, color:"#6b9aad", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:12 }}>Already Joined</p>
                 {participants.map(p => (
-                  <div key={p.id} style={{ display:"flex", alignItems:"flex-start", gap:10, marginBottom:10, padding:"10px 12px", background:"rgba(255,255,255,0.04)", borderRadius:10 }}>
-                    <div style={{ width:30, height:30, borderRadius:"50%", background:p.color, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:700, color:"#fff", flexShrink:0, marginTop:1 }}>{getInitials(p.name)}</div>
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontWeight:600, fontSize:14, marginBottom:5 }}>{p.name}</div>
-                      <div style={{ display:"flex", flexWrap:"wrap", gap:4 }}>
-                        {p.teams.map(t => { const info=WC_TEAMS.find(x=>x.name===t); return <span key={t} className="ch">{info?.flag} {t}</span>; })}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+  <div key={p.id} style={{ display:"flex", alignItems:"flex-start", gap:10, marginBottom:10, padding:"10px 12px", background:"rgba(255,255,255,0.04)", borderRadius:10 }}>
+    <div style={{ width:30, height:30, borderRadius:"50%", background:p.color, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:700, color:"#fff", flexShrink:0, marginTop:1 }}>{getInitials(p.name)}</div>
+    <div style={{ flex:1 }}>
+      <div style={{ fontWeight:600, fontSize:14, marginBottom:5 }}>{p.name}</div>
+      <div style={{ display:"flex", flexWrap:"wrap", gap:4 }}>
+        {p.teams.map(t => { const info=WC_TEAMS.find(x=>x.name===t); return <span key={t} className="ch">{info?.flag} {t}</span>; })}
+      </div>
+    </div>
+    <button onClick={() => {
+      setNewName(p.name);
+      setSelectedTeams([...p.teams]);
+      setEditingId(p.id);
+    }} style={{ background:"rgba(0,212,106,0.12)", border:"1px solid rgba(0,212,106,0.3)", color:"#00d46a", padding:"5px 10px", borderRadius:8, cursor:"pointer", fontSize:12, fontWeight:600, flexShrink:0 }}>
+      ✏️ Edit
+    </button>
+  </div>
+))}
               </div>
             )}
           </div>
