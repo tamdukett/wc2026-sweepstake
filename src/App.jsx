@@ -12,10 +12,10 @@ const WC_ID = 2000;
 const WC_TEAMS = [
   { name: "Mexico", flag: "🇲🇽", group: "A" },
   { name: "South Africa", flag: "🇿🇦", group: "A" },
-  { name: "Korea Republic", flag: "🇰🇷", group: "A" },
+  { name: "South Korea", flag: "🇰🇷", group: "A" },
   { name: "Czechia", flag: "🇨🇿", group: "A" },
   { name: "Canada", flag: "🇨🇦", group: "B" },
-  { name: "Bosnia and Herzegovina", flag: "🇧🇦", group: "B" },
+  { name: "Bosnia-Herzegovina", flag: "🇧🇦", group: "B" },
   { name: "Qatar", flag: "🇶🇦", group: "B" },
   { name: "Switzerland", flag: "🇨🇭", group: "B" },
   { name: "Brazil", flag: "🇧🇷", group: "C" },
@@ -25,7 +25,7 @@ const WC_TEAMS = [
   { name: "United States", flag: "🇺🇸", group: "D" },
   { name: "Paraguay", flag: "🇵🇾", group: "D" },
   { name: "Australia", flag: "🇦🇺", group: "D" },
-  { name: "Türkiye", flag: "🇹🇷", group: "D" },
+  { name: "Turkey", flag: "🇹🇷", group: "D" },
   { name: "Germany", flag: "🇩🇪", group: "E" },
   { name: "Curaçao", flag: "🇨🇼", group: "E" },
   { name: "Ivory Coast", flag: "🇨🇮", group: "E" },
@@ -51,7 +51,7 @@ const WC_TEAMS = [
   { name: "Austria", flag: "🇦🇹", group: "J" },
   { name: "Jordan", flag: "🇯🇴", group: "J" },
   { name: "Portugal", flag: "🇵🇹", group: "K" },
-  { name: "DR Congo", flag: "🇨🇩", group: "K" },
+  { name: "Congo DR", flag: "🇨🇩", group: "K" },
   { name: "Uzbekistan", flag: "🇺🇿", group: "K" },
   { name: "Colombia", flag: "🇨🇴", group: "K" },
   { name: "England", flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", group: "L" },
@@ -88,6 +88,7 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [expanded, setExpanded] = useState(null);
+  const [previousRanks, setPreviousRanks] = useState({});
   const [editingId, setEditingId] = useState(null);
   const liveTimer = useRef(null);
 
@@ -188,40 +189,38 @@ export default function App() {
   const toggleTeam = name => setSelectedTeams(p => p.includes(name) ? p.filter(t => t !== name) : [...p, name]);
 
   const handleRegister = async () => {
-  if (!newName.trim()) { showToast("Enter your name", "error"); return; }
-  if (!selectedTeams.length) { showToast("Pick at least one team!", "error"); return; }
+    if (!newName.trim()) { showToast("Enter your name", "error"); return; }
+    if (!selectedTeams.length) { showToast("Pick at least one team!", "error"); return; }
 
-  if (editingId) {
-    // Update existing participant
-    const { error } = await supabase
-      .from("participants")
-      .update({ teams: JSON.stringify(selectedTeams) })
-      .eq("id", editingId);
+    if (editingId) {
+      const { error } = await supabase
+        .from("participants")
+        .update({ teams: JSON.stringify(selectedTeams) })
+        .eq("id", editingId);
+      if (error) { console.error(error); showToast("Error saving — try again", "error"); return; }
+      setEditingId(null);
+      setNewName("");
+      setSelectedTeams([]);
+      showToast(`Teams updated! 🎉`);
+      setScreen("leaderboard");
+      return;
+    }
+
+    if (participants.find(p => p.name.toLowerCase() === newName.trim().toLowerCase())) {
+      showToast("Name already taken!", "error"); return;
+    }
+    const color = AVATAR_COLORS[participants.length % AVATAR_COLORS.length];
+    const { error } = await supabase.from("participants").insert([{
+      name: newName.trim(),
+      teams: JSON.stringify(selectedTeams),
+      color,
+    }]);
     if (error) { console.error(error); showToast("Error saving — try again", "error"); return; }
-    setEditingId(null);
     setNewName("");
     setSelectedTeams([]);
-    showToast(`Teams updated! 🎉`);
+    showToast(`Welcome ${newName.trim()}! 🎉`);
     setScreen("leaderboard");
-    return;
-  }
-
-  // New participant
-  if (participants.find(p => p.name.toLowerCase() === newName.trim().toLowerCase())) {
-    showToast("Name already taken!", "error"); return;
-  }
-  const color = AVATAR_COLORS[participants.length % AVATAR_COLORS.length];
-  const { error } = await supabase.from("participants").insert([{
-    name: newName.trim(),
-    teams: JSON.stringify(selectedTeams),
-    color,
-  }]);
-  if (error) { console.error(error); showToast("Error saving — try again", "error"); return; }
-  setNewName("");
-  setSelectedTeams([]);
-  showToast(`Welcome ${newName.trim()}! 🎉`);
-  setScreen("leaderboard");
-};
+  };
 
   const handleRemove = async (id) => {
     await supabase.from("participants").delete().eq("id", id);
@@ -239,6 +238,18 @@ export default function App() {
       totalGd: teamData.reduce((s,t) => s + (t.gd||0), 0),
     };
   }).sort((a,b) => b.totalPts - a.totalPts || b.totalGd - a.totalGd);
+
+  useEffect(() => {
+    setPreviousRanks(prev => {
+      const current = {};
+      enriched.forEach((p, i) => { current[p.id] = i; });
+      const merged = {};
+      Object.keys(current).forEach(id => {
+        merged[id] = prev[id] !== undefined ? prev[id] : current[id];
+      });
+      return merged;
+    });
+  }, [standings]);
 
   const filtered = enriched.filter(p =>
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -340,8 +351,8 @@ export default function App() {
 
       <div style={S.inner}>
         <div style={{ textAlign:"center", padding:"36px 0 24px" }}>
-  <img src="/logo.png" alt="Progressive Lets World Cup 2026" style={{ width:220, marginBottom:16 }} />
-  <p style={{ color:"#6b9aad", fontSize:13 }}>
+          <img src="/logo.png" alt="Progressive Lets World Cup 2026" style={{ width:220, marginBottom:16 }} />
+          <p style={{ color:"#6b9aad", fontSize:13 }}>
             Office Sweepstake · {participants.length} entrant{participants.length!==1?"s":""} · {availableTeams.length} teams left
             {loading && <span style={{ marginLeft:8, color:"#f59e0b" }}>⟳ updating...</span>}
             {apiError && <span style={{ marginLeft:8, color:"#ef4444" }}>⚠ API unavailable</span>}
@@ -509,7 +520,13 @@ export default function App() {
                     <div style={{ textAlign:"right", flexShrink:0 }}>
                       <div style={{ fontSize:20, fontWeight:800, color:"#00d46a" }}>{p.totalPts}</div>
                       <div style={{ fontSize:11, color:"#6b9aad" }}>pts</div>
-                      <div style={{ fontSize:11, color:"#6b9aad", marginTop:1 }}>{isExp?"▲":"▼"}</div>
+                      {(() => {
+                        const prevRank = previousRanks[p.id];
+                        if (prevRank === undefined) return null;
+                        if (prevRank > i) return <div style={{ fontSize:13, color:"#00d46a", fontWeight:700 }}>▲ {prevRank - i}</div>;
+                        if (prevRank < i) return <div style={{ fontSize:13, color:"#ef4444", fontWeight:700 }}>▼ {i - prevRank}</div>;
+                        return <div style={{ fontSize:11, color:"#6b9aad" }}>—</div>;
+                      })()}
                     </div>
                   </div>
                   {isExp && (
@@ -700,23 +717,23 @@ export default function App() {
               <div style={{ marginTop:24, paddingTop:20, borderTop:"1px solid rgba(255,255,255,0.08)" }}>
                 <p style={{ fontSize:12, fontWeight:700, color:"#6b9aad", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:12 }}>Already Joined</p>
                 {participants.map(p => (
-  <div key={p.id} style={{ display:"flex", alignItems:"flex-start", gap:10, marginBottom:10, padding:"10px 12px", background:"rgba(255,255,255,0.04)", borderRadius:10 }}>
-    <div style={{ width:30, height:30, borderRadius:"50%", background:p.color, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:700, color:"#fff", flexShrink:0, marginTop:1 }}>{getInitials(p.name)}</div>
-    <div style={{ flex:1 }}>
-      <div style={{ fontWeight:600, fontSize:14, marginBottom:5 }}>{p.name}</div>
-      <div style={{ display:"flex", flexWrap:"wrap", gap:4 }}>
-        {p.teams.map(t => { const info=WC_TEAMS.find(x=>x.name===t); return <span key={t} className="ch">{info?.flag} {t}</span>; })}
-      </div>
-    </div>
-    <button onClick={() => {
-      setNewName(p.name);
-      setSelectedTeams([...p.teams]);
-      setEditingId(p.id);
-    }} style={{ background:"rgba(0,212,106,0.12)", border:"1px solid rgba(0,212,106,0.3)", color:"#00d46a", padding:"5px 10px", borderRadius:8, cursor:"pointer", fontSize:12, fontWeight:600, flexShrink:0 }}>
-      ✏️ Edit
-    </button>
-  </div>
-))}
+                  <div key={p.id} style={{ display:"flex", alignItems:"flex-start", gap:10, marginBottom:10, padding:"10px 12px", background:"rgba(255,255,255,0.04)", borderRadius:10 }}>
+                    <div style={{ width:30, height:30, borderRadius:"50%", background:p.color, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:700, color:"#fff", flexShrink:0, marginTop:1 }}>{getInitials(p.name)}</div>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontWeight:600, fontSize:14, marginBottom:5 }}>{p.name}</div>
+                      <div style={{ display:"flex", flexWrap:"wrap", gap:4 }}>
+                        {p.teams.map(t => { const info=WC_TEAMS.find(x=>x.name===t); return <span key={t} className="ch">{info?.flag} {t}</span>; })}
+                      </div>
+                    </div>
+                    <button onClick={() => {
+                      setNewName(p.name);
+                      setSelectedTeams([...p.teams]);
+                      setEditingId(p.id);
+                    }} style={{ background:"rgba(0,212,106,0.12)", border:"1px solid rgba(0,212,106,0.3)", color:"#00d46a", padding:"5px 10px", borderRadius:8, cursor:"pointer", fontSize:12, fontWeight:600, flexShrink:0 }}>
+                      ✏️ Edit
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -729,7 +746,7 @@ export default function App() {
             {!adminUnlocked ? (
               <div>
                 <label style={S.lbl}>Admin PIN</label>
-                <input style={S.inp} type="password" placeholder="Enter PIN (default: 1234)" value={adminPin} onChange={e => setAdminPin(e.target.value)} onKeyDown={e => { if(e.key==="Enter"){if(adminPin==="4429")setAdminUnlocked(true);else showToast("Wrong PIN","error");}}} />
+                <input style={S.inp} type="password" placeholder="Enter PIN" value={adminPin} onChange={e => setAdminPin(e.target.value)} onKeyDown={e => { if(e.key==="Enter"){if(adminPin==="4429")setAdminUnlocked(true);else showToast("Wrong PIN","error");}}} />
                 <button style={{ ...S.btn, marginTop:14 }} onClick={() => { if(adminPin==="4429")setAdminUnlocked(true);else showToast("Wrong PIN","error"); }}>Unlock</button>
               </div>
             ) : (
