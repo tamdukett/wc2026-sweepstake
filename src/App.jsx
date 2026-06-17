@@ -66,6 +66,19 @@ const AVATAR_COLORS = [
   "#3a86ff","#c77dff","#f72585","#4cc9f0","#80b918",
 ];
 
+const ROASTS = [
+  "Tough scoreline. Might want to sit this one out on Monday.",
+  "That's going to be a quiet one at the watercooler.",
+  "Bold strategy. Let's see how it pays off.",
+  "The wheels have officially come off.",
+  "Statistically speaking, things can only get better. Probably.",
+  "On the bright side, at least it's not the worst score on the board. Yet.",
+  "That's a result you bury quietly and never mention again.",
+  "Some days you're the pigeon, some days you're the statue.",
+  "Character building, that one.",
+  "Plot twist nobody asked for.",
+];
+
 const getInitials = n => n.split(" ").map(w => w[0]).join("").toUpperCase().slice(0,2);
 const fc = r => r === "W" ? "#00d46a" : r === "D" ? "#f59e0b" : "#ef4444";
 
@@ -90,6 +103,10 @@ export default function App() {
   const [expanded, setExpanded] = useState(null);
   const [previousRanks, setPreviousRanks] = useState({});
   const [editingId, setEditingId] = useState(null);
+  const [confettiTrigger, setConfettiTrigger] = useState(0);
+  const [leaderId, setLeaderId] = useState(null);
+  const [h2hA, setH2hA] = useState(null);
+  const [h2hB, setH2hB] = useState(null);
   const liveTimer = useRef(null);
 
   const loadParticipants = useCallback(async () => {
@@ -251,6 +268,15 @@ export default function App() {
     });
   }, [standings]);
 
+  useEffect(() => {
+    if (enriched.length === 0) return;
+    const currentLeader = enriched[0].id;
+    if (leaderId !== null && currentLeader !== leaderId) {
+      setConfettiTrigger(c => c + 1);
+    }
+    setLeaderId(currentLeader);
+  }, [standings]);
+
   const filtered = enriched.filter(p =>
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.teams.some(t => t.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -262,6 +288,8 @@ export default function App() {
     if (i===2) return { emoji:"🥉", color:"#cd7f32" };
     return { emoji:`#${i+1}`, color:"#6b7280" };
   };
+
+  const getRoast = seed => ROASTS[seed % ROASTS.length];
 
   const matchStatusLabel = m => {
     if (m.status === "IN_PLAY") return `🔴 ${m.minute || ""}' LIVE`;
@@ -305,10 +333,14 @@ export default function App() {
     lbl: { display:"block", marginBottom:8, fontSize:13, fontWeight:600, color:"#6b9aad" },
   };
 
+  const h2hPlayerA = enriched.find(p => p.id === h2hA);
+  const h2hPlayerB = enriched.find(p => p.id === h2hB);
+
   return (
     <div style={S.app}>
       <style>{`
         * { box-sizing:border-box; margin:0; padding:0; }
+        @keyframes fall { to { transform: translateY(110vh) rotate(360deg); opacity: 0.3; } }
         .nb { background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.12); color:#e8f4f8; padding:10px 16px; border-radius:10px; cursor:pointer; font-size:13px; font-weight:500; white-space:nowrap; }
         .nb:hover { background:rgba(0,212,106,0.2); border-color:#00d46a; }
         .nb.on { background:#00d46a; border-color:#00d46a; color:#0a1628; font-weight:700; }
@@ -328,6 +360,23 @@ export default function App() {
       `}</style>
 
       <div style={{ position:"fixed", inset:0, opacity:0.035, pointerEvents:"none", backgroundImage:"repeating-linear-gradient(0deg,transparent,transparent 40px,#00d46a 40px,#00d46a 41px)", zIndex:0 }} />
+
+      {confettiTrigger > 0 && (
+        <div key={confettiTrigger} style={{ position:"fixed", inset:0, pointerEvents:"none", zIndex:999, overflow:"hidden" }}>
+          {Array.from({ length: 60 }).map((_, i) => (
+            <div key={i} style={{
+              position:"absolute",
+              left:`${Math.random()*100}%`,
+              top:"-10px",
+              width:8, height:8,
+              background:["#00d46a","#ffd700","#ef4444","#3a86ff","#ff006e"][i % 5],
+              borderRadius: i % 2 === 0 ? "50%" : "2px",
+              animation:`fall ${2 + Math.random()*2}s linear forwards`,
+              animationDelay:`${Math.random()*0.5}s`,
+            }} />
+          ))}
+        </div>
+      )}
 
       {toast && (
         <div style={{ position:"fixed", top:20, left:"50%", transform:"translateX(-50%)", background:toast.type==="error"?"#ef4444":"#00d46a", color:"#fff", padding:"12px 24px", borderRadius:12, fontWeight:600, zIndex:1000, whiteSpace:"nowrap" }}>
@@ -360,7 +409,7 @@ export default function App() {
         </div>
 
         <div style={{ display:"flex", gap:8, marginBottom:24, flexWrap:"wrap" }}>
-          {[["home","🏠 Home"],["leaderboard","📊 Leaderboard"],["fixtures","📅 Fixtures"],["standings","🌍 Groups"],["knockout","🏆 Bracket"],["register","➕ Join"]].map(([id,label]) => (
+          {[["home","🏠 Home"],["leaderboard","📊 Leaderboard"],["headtohead","⚔️ Head-to-Head"],["fixtures","📅 Fixtures"],["standings","🌍 Groups"],["knockout","🏆 Bracket"],["register","➕ Join"]].map(([id,label]) => (
             <button key={id} className={`nb ${screen===id?"on":""}`} onClick={() => setScreen(id)}>{label}</button>
           ))}
           <button className={`nb ${screen==="admin"?"on":""}`} style={{ marginLeft:"auto" }} onClick={() => setScreen("admin")}>⚙️</button>
@@ -389,24 +438,48 @@ export default function App() {
                 <p style={{ fontSize:12, fontWeight:700, color:"#ef4444", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:12, display:"flex", alignItems:"center", gap:6 }}>
                   <span className="live-pulse" />LIVE MATCHES
                 </p>
-                {liveMatches.map(m => (
-                  <div key={m.id} className="match-card live">
-                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                      <div style={{ display:"flex", alignItems:"center", gap:8, flex:1 }}>
-                        <span style={{ fontSize:18 }}>{getFlag(m.homeTeam?.name)}</span>
-                        <span style={{ fontWeight:700, fontSize:14 }}>{m.homeTeam?.shortName || m.homeTeam?.name}</span>
-                      </div>
-                      <div style={{ textAlign:"center", padding:"0 12px" }}>
-                        <div style={{ fontSize:20, fontWeight:800, color:"#00d46a" }}>{m.score?.fullTime?.home ?? 0} – {m.score?.fullTime?.away ?? 0}</div>
-                        <div style={{ fontSize:11, color:"#ef4444", fontWeight:700 }}>{m.minute}' LIVE</div>
-                      </div>
-                      <div style={{ display:"flex", alignItems:"center", gap:8, flex:1, justifyContent:"flex-end" }}>
-                        <span style={{ fontWeight:700, fontSize:14 }}>{m.awayTeam?.shortName || m.awayTeam?.name}</span>
-                        <span style={{ fontSize:18 }}>{getFlag(m.awayTeam?.name)}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+               {liveMatches.map(m => {
+  const homeOwners = participants.filter(p => p.teams.some(t => m.homeTeam?.name?.includes(t) || t.includes(m.homeTeam?.name)));
+  const awayOwners = participants.filter(p => p.teams.some(t => m.awayTeam?.name?.includes(t) || t.includes(m.awayTeam?.name)));
+  const hasOfficeTeam = homeOwners.length > 0 || awayOwners.length > 0;
+  const scorers = (m.goals || []).filter(g => g.type === "REGULAR" || !g.type);
+  const kickoff = new Date(m.utcDate).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
+  return (
+    <div key={m.id} className="match-card live" style={hasOfficeTeam ? { borderColor:"rgba(0,212,106,0.4)", background:"rgba(0,212,106,0.05)" } : {}}>
+      {hasOfficeTeam && (
+        <div style={{ fontSize:11, fontWeight:700, color:"#00d46a", marginBottom:8 }}>
+          ⭐ {[...homeOwners, ...awayOwners].map(o => o.name).join(", ")}'s team is playing!
+        </div>
+      )}
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8, flex:1 }}>
+          <span style={{ fontSize:18 }}>{getFlag(m.homeTeam?.name)}</span>
+          <span style={{ fontWeight:700, fontSize:14 }}>{m.homeTeam?.shortName || m.homeTeam?.name}</span>
+          {homeOwners.length > 0 && homeOwners.map(o => <span key={o.id} style={{ background:o.color, color:"#fff", fontSize:9, fontWeight:700, padding:"1px 5px", borderRadius:99 }}>{getInitials(o.name)}</span>)}
+        </div>
+        <div style={{ textAlign:"center", padding:"0 12px" }}>
+          <div style={{ fontSize:20, fontWeight:800, color:"#00d46a" }}>{m.score?.fullTime?.home ?? 0} – {m.score?.fullTime?.away ?? 0}</div>
+          <div style={{ fontSize:11, color:"#ef4444", fontWeight:700 }}>{m.minute}' LIVE</div>
+          <div style={{ fontSize:10, color:"#6b9aad", marginTop:2 }}>KO {kickoff}</div>
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:8, flex:1, justifyContent:"flex-end" }}>
+          {awayOwners.length > 0 && awayOwners.map(o => <span key={o.id} style={{ background:o.color, color:"#fff", fontSize:9, fontWeight:700, padding:"1px 5px", borderRadius:99 }}>{getInitials(o.name)}</span>)}
+          <span style={{ fontWeight:700, fontSize:14 }}>{m.awayTeam?.shortName || m.awayTeam?.name}</span>
+          <span style={{ fontSize:18 }}>{getFlag(m.awayTeam?.name)}</span>
+        </div>
+      </div>
+      {scorers.length > 0 && (
+        <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid rgba(255,255,255,0.08)", fontSize:11, color:"#a0b8c8" }}>
+          ⚽ {scorers.map((g,gi) => (
+            <span key={gi}>
+              {g.scorer?.name || "Unknown"} {g.minute}'{gi < scorers.length - 1 ? " · " : ""}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+})}
               </div>
             )}
 
@@ -443,49 +516,69 @@ export default function App() {
             </div>
             {apiError && <div style={{ ...S.card, padding:"24px", textAlign:"center", color:"#f59e0b", marginBottom:14 }}>⚠️ Could not load live data</div>}
             {fixtures.length === 0 && !apiError && <div style={{ textAlign:"center", color:"#6b9aad", padding:"40px 0" }}>Loading fixtures...</div>}
-            {fixtures.map(m => {
-              const isLive = ["IN_PLAY","PAUSED","HALFTIME"].includes(m.status);
-              const isDone = m.status === "FINISHED";
-              const owners = name => participants.filter(p => p.teams.some(t => name?.includes(t)));
-              return (
-                <div key={m.id} className={`match-card ${isLive?"live":""}`}>
-                  <div style={{ fontSize:11, color:isLive?"#ef4444":"#6b9aad", fontWeight:700, marginBottom:8 }}>
-                    {isLive && <span className="live-pulse" style={{ marginRight:6 }} />}
-                    {matchStatusLabel(m)}
-                    {m.group && <span style={{ marginLeft:8, color:"#6b9aad", fontWeight:400 }}>· Group {m.group?.replace("GROUP_","")}</span>}
-                  </div>
-                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                    <div style={{ flex:1 }}>
-                      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                        <span style={{ fontSize:20 }}>{getFlag(m.homeTeam?.name)}</span>
-                        <div>
-                          <div style={{ fontWeight:700, fontSize:14 }}>{m.homeTeam?.name}</div>
-                          <div style={{ display:"flex", gap:3, marginTop:2 }}>
-                            {owners(m.homeTeam?.name).map(o => <span key={o.id} style={{ background:o.color, color:"#fff", fontSize:9, fontWeight:700, padding:"1px 5px", borderRadius:99 }}>{getInitials(o.name)}</span>)}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div style={{ textAlign:"center", padding:"0 16px" }}>
-                      {(isLive||isDone)
-                        ? <div style={{ fontSize:22, fontWeight:800, color:"#00d46a" }}>{m.score?.fullTime?.home ?? 0} – {m.score?.fullTime?.away ?? 0}</div>
-                        : <div style={{ fontSize:16, fontWeight:700, color:"#6b9aad" }}>vs</div>}
-                    </div>
-                    <div style={{ flex:1, textAlign:"right" }}>
-                      <div style={{ display:"flex", alignItems:"center", gap:8, justifyContent:"flex-end" }}>
-                        <div>
-                          <div style={{ fontWeight:700, fontSize:14 }}>{m.awayTeam?.name}</div>
-                          <div style={{ display:"flex", gap:3, marginTop:2, justifyContent:"flex-end" }}>
-                            {owners(m.awayTeam?.name).map(o => <span key={o.id} style={{ background:o.color, color:"#fff", fontSize:9, fontWeight:700, padding:"1px 5px", borderRadius:99 }}>{getInitials(o.name)}</span>)}
-                          </div>
-                        </div>
-                        <span style={{ fontSize:20 }}>{getFlag(m.awayTeam?.name)}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+           {fixtures.map(m => {
+  const isLive = ["IN_PLAY","PAUSED","HALFTIME"].includes(m.status);
+  const isDone = m.status === "FINISHED";
+  const owners = name => participants.filter(p => p.teams.some(t => name?.includes(t) || t.includes(name)));
+  const homeOwners = owners(m.homeTeam?.name);
+  const awayOwners = owners(m.awayTeam?.name);
+  const hasOfficeTeam = homeOwners.length > 0 || awayOwners.length > 0;
+  const scorers = (m.goals || []).filter(g => g.type === "REGULAR" || !g.type);
+  const kickoff = new Date(m.utcDate).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
+  return (
+    <div key={m.id} className={`match-card ${isLive?"live":""}`} style={hasOfficeTeam && !isLive ? { borderColor:"rgba(0,212,106,0.4)", background:"rgba(0,212,106,0.05)" } : {}}>
+      {hasOfficeTeam && (
+        <div style={{ fontSize:11, fontWeight:700, color:"#00d46a", marginBottom:8 }}>
+          ⭐ {[...homeOwners, ...awayOwners].map(o => o.name).join(", ")}'s team is playing!
+        </div>
+      )}
+      <div style={{ fontSize:11, color:isLive?"#ef4444":"#6b9aad", fontWeight:700, marginBottom:8 }}>
+        {isLive && <span className="live-pulse" style={{ marginRight:6 }} />}
+        {matchStatusLabel(m)}
+        {isLive && <span style={{ marginLeft:8, color:"#6b9aad", fontWeight:400 }}>· KO {kickoff}</span>}
+        {m.group && <span style={{ marginLeft:8, color:"#6b9aad", fontWeight:400 }}>· Group {m.group?.replace("GROUP_","")}</span>}
+      </div>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <div style={{ flex:1 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <span style={{ fontSize:20 }}>{getFlag(m.homeTeam?.name)}</span>
+            <div>
+              <div style={{ fontWeight:700, fontSize:14 }}>{m.homeTeam?.name}</div>
+              <div style={{ display:"flex", gap:3, marginTop:2 }}>
+                {homeOwners.map(o => <span key={o.id} style={{ background:o.color, color:"#fff", fontSize:9, fontWeight:700, padding:"1px 5px", borderRadius:99 }}>{getInitials(o.name)}</span>)}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style={{ textAlign:"center", padding:"0 16px" }}>
+          {(isLive||isDone)
+            ? <div style={{ fontSize:22, fontWeight:800, color:"#00d46a" }}>{m.score?.fullTime?.home ?? 0} – {m.score?.fullTime?.away ?? 0}</div>
+            : <div style={{ fontSize:16, fontWeight:700, color:"#6b9aad" }}>vs</div>}
+        </div>
+        <div style={{ flex:1, textAlign:"right" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8, justifyContent:"flex-end" }}>
+            <div>
+              <div style={{ fontWeight:700, fontSize:14 }}>{m.awayTeam?.name}</div>
+              <div style={{ display:"flex", gap:3, marginTop:2, justifyContent:"flex-end" }}>
+                {awayOwners.map(o => <span key={o.id} style={{ background:o.color, color:"#fff", fontSize:9, fontWeight:700, padding:"1px 5px", borderRadius:99 }}>{getInitials(o.name)}</span>)}
+              </div>
+            </div>
+            <span style={{ fontSize:20 }}>{getFlag(m.awayTeam?.name)}</span>
+          </div>
+        </div>
+      </div>
+      {scorers.length > 0 && (
+        <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid rgba(255,255,255,0.08)", fontSize:11, color:"#a0b8c8" }}>
+          ⚽ {scorers.map((g,gi) => (
+            <span key={gi}>
+              {g.scorer?.name || "Unknown"} {g.minute}'{gi < scorers.length - 1 ? " · " : ""}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+})}
           </div>
         )}
 
@@ -512,7 +605,11 @@ export default function App() {
                     <div style={{ width:32, textAlign:"center", fontSize:i<3?20:13, fontWeight:700, color:getRank(i).color, flexShrink:0 }}>{getRank(i).emoji}</div>
                     <div style={{ width:42, height:42, borderRadius:"50%", background:p.color, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700, fontSize:14, color:"#fff", flexShrink:0, boxShadow:i===0?"0 0 0 2px #ffd700":"none" }}>{getInitials(p.name)}</div>
                     <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ fontWeight:700, fontSize:15 }}>{p.name}</div>
+                      <div style={{ fontWeight:700, fontSize:15, display:"flex", alignItems:"center", gap:6 }}>
+                        {p.name}
+                        {i === 0 && filtered.length > 1 && <span style={{ fontSize:13 }}>🔥</span>}
+                        {i === filtered.length - 1 && filtered.length > 2 && <span style={{ fontSize:13 }}>💀</span>}
+                      </div>
                       <div style={{ display:"flex", flexWrap:"wrap", gap:4, marginTop:4 }}>
                         {p.teams.map(t => { const info=WC_TEAMS.find(x=>x.name===t); const ts=standings[t]; return <span key={t} className="ch">{info?.flag} {t}{ts?` · ${ts.pts}pt`:""}</span>; })}
                       </div>
@@ -555,11 +652,115 @@ export default function App() {
                         <span style={{ fontWeight:700, fontSize:13 }}>Combined total</span>
                         <span style={{ fontWeight:800, color:"#00d46a", fontSize:15 }}>{p.totalPts} pts</span>
                       </div>
+                      {(() => {
+                        const seed = p.id + (p.totalPts || 0);
+                        const isLow = i === filtered.length - 1 && filtered.length > 2;
+                        return isLow ? (
+                          <div style={{ marginTop:10, padding:"8px 10px", background:"rgba(239,68,68,0.08)", borderRadius:8, fontSize:12, color:"#f3a5a5", fontStyle:"italic" }}>
+                            💬 {getRoast(seed)}
+                          </div>
+                        ) : null;
+                      })()}
                     </div>
                   )}
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {screen === "headtohead" && (
+          <div>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18 }}>
+              <h2 style={{ fontSize:19, fontWeight:700 }}>Head-to-Head</h2>
+            </div>
+            {enriched.length < 2 ? (
+              <div style={{ ...S.card, padding:"40px 24px", textAlign:"center" }}>
+                <div style={{ fontSize:44, marginBottom:10 }}>⚔️</div>
+                <div style={{ fontWeight:600, marginBottom:6 }}>Need at least 2 entrants</div>
+                <div style={{ color:"#6b9aad", fontSize:13 }}>Get more office mates to join first!</div>
+              </div>
+            ) : (
+              <div>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:18 }}>
+                  <div>
+                    <label style={S.lbl}>Player A</label>
+                    <select style={S.inp} value={h2hA ?? ""} onChange={e => setH2hA(Number(e.target.value) || null)}>
+                      <option value="">Select...</option>
+                      {enriched.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={S.lbl}>Player B</label>
+                    <select style={S.inp} value={h2hB ?? ""} onChange={e => setH2hB(Number(e.target.value) || null)}>
+                      <option value="">Select...</option>
+                      {enriched.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                {h2hPlayerA && h2hPlayerB && h2hPlayerA.id !== h2hPlayerB.id ? (
+                  <div>
+                    <div style={{ ...S.card, padding:"20px", marginBottom:14, textAlign:"center" }}>
+                      <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:20 }}>
+                        <div style={{ flex:1 }}>
+                          <div style={{ width:50, height:50, borderRadius:"50%", background:h2hPlayerA.color, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700, fontSize:16, color:"#fff", margin:"0 auto 8px" }}>{getInitials(h2hPlayerA.name)}</div>
+                          <div style={{ fontWeight:700, fontSize:15 }}>{h2hPlayerA.name}</div>
+                          <div style={{ fontSize:28, fontWeight:800, color: h2hPlayerA.totalPts >= h2hPlayerB.totalPts ? "#00d46a" : "#6b9aad" }}>{h2hPlayerA.totalPts}</div>
+                        </div>
+                        <div style={{ fontSize:18, fontWeight:700, color:"#6b9aad" }}>VS</div>
+                        <div style={{ flex:1 }}>
+                          <div style={{ width:50, height:50, borderRadius:"50%", background:h2hPlayerB.color, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700, fontSize:16, color:"#fff", margin:"0 auto 8px" }}>{getInitials(h2hPlayerB.name)}</div>
+                          <div style={{ fontWeight:700, fontSize:15 }}>{h2hPlayerB.name}</div>
+                          <div style={{ fontSize:28, fontWeight:800, color: h2hPlayerB.totalPts >= h2hPlayerA.totalPts ? "#00d46a" : "#6b9aad" }}>{h2hPlayerB.totalPts}</div>
+                        </div>
+                      </div>
+                      <div style={{ marginTop:14, fontSize:13, color:"#6b9aad" }}>
+                        {h2hPlayerA.totalPts === h2hPlayerB.totalPts
+                          ? "Dead even — anyone's game"
+                          : `${h2hPlayerA.totalPts > h2hPlayerB.totalPts ? h2hPlayerA.name : h2hPlayerB.name} is ahead by ${Math.abs(h2hPlayerA.totalPts - h2hPlayerB.totalPts)} pts`}
+                      </div>
+                    </div>
+
+                    <div style={{ ...S.card, padding:"18px 20px" }}>
+                      <p style={{ fontSize:12, fontWeight:700, color:"#6b9aad", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:14 }}>Team Comparison</p>
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+                        <div>
+                          {h2hPlayerA.teams.map(t => {
+                            const info = WC_TEAMS.find(x => x.name===t);
+                            const ts = standings[t] || {};
+                            return (
+                              <div key={t} style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8, fontSize:12 }}>
+                                <span>{info?.flag}</span>
+                                <span style={{ flex:1 }}>{t}</span>
+                                <span style={{ fontWeight:700, color:"#00d46a" }}>{ts.pts ?? 0}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div>
+                          {h2hPlayerB.teams.map(t => {
+                            const info = WC_TEAMS.find(x => x.name===t);
+                            const ts = standings[t] || {};
+                            return (
+                              <div key={t} style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8, fontSize:12, justifyContent:"flex-end" }}>
+                                <span style={{ fontWeight:700, color:"#00d46a" }}>{ts.pts ?? 0}</span>
+                                <span style={{ flex:1, textAlign:"right" }}>{t}</span>
+                                <span>{info?.flag}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ ...S.card, padding:"30px 24px", textAlign:"center", color:"#6b9aad", fontSize:13 }}>
+                    Pick two different people above to compare
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
