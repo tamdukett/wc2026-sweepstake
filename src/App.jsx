@@ -448,7 +448,12 @@ export default function App() {
     <div key={m.id} className="match-card live" style={hasOfficeTeam ? { borderColor:"rgba(0,212,106,0.4)", background:"rgba(0,212,106,0.05)" } : {}}>
       {hasOfficeTeam && (
         <div style={{ fontSize:11, fontWeight:700, color:"#00d46a", marginBottom:8 }}>
-          ⭐ {[...homeOwners, ...awayOwners].map(o => o.name).join(", ")}'s team is playing!
+         ⭐ {(() => {
+  const names = [...new Set([...homeOwners, ...awayOwners].map(o => o.name))];
+  if (names.length === 1) return `${names[0]}'s team is playing!`;
+  if (names.length === 2) return `${names[0]} & ${names[1]}'s teams are playing!`;
+  return `${names.slice(0,-1).join(", ")} & ${names[names.length-1]}'s teams are playing!`;
+})()}
         </div>
       )}
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
@@ -529,7 +534,12 @@ export default function App() {
     <div key={m.id} className={`match-card ${isLive?"live":""}`} style={hasOfficeTeam && !isLive ? { borderColor:"rgba(0,212,106,0.4)", background:"rgba(0,212,106,0.05)" } : {}}>
       {hasOfficeTeam && (
         <div style={{ fontSize:11, fontWeight:700, color:"#00d46a", marginBottom:8 }}>
-          ⭐ {[...homeOwners, ...awayOwners].map(o => o.name).join(", ")}'s team is playing!
+         ⭐ {(() => {
+  const names = [...new Set([...homeOwners, ...awayOwners].map(o => o.name))];
+  if (names.length === 1) return `${names[0]}'s team is playing!`;
+  if (names.length === 2) return `${names[0]} & ${names[1]}'s teams are playing!`;
+  return `${names.slice(0,-1).join(", ")} & ${names[names.length-1]}'s teams are playing!`;
+})()}
         </div>
       )}
       <div style={{ fontSize:11, color:isLive?"#ef4444":"#6b9aad", fontWeight:700, marginBottom:8 }}>
