@@ -39,7 +39,7 @@ const WC_TEAMS = [
   { name: "Iran", flag: "🇮🇷", group: "G" },
   { name: "New Zealand", flag: "🇳🇿", group: "G" },
   { name: "Spain", flag: "🇪🇸", group: "H" },
-  { name: "Cape Verde", flag: "🇨🇻", group: "H" },
+  { name: "Cape Verde Islands", flag: "🇨🇻", group: "H" },
   { name: "Saudi Arabia", flag: "🇸🇦", group: "H" },
   { name: "Uruguay", flag: "🇺🇾", group: "H" },
   { name: "France", flag: "🇫🇷", group: "I" },
@@ -176,8 +176,8 @@ export default function App() {
         setLiveMatches(all.filter(m => ["IN_PLAY","PAUSED","HALFTIME"].includes(m.status)));
         setFixtures([
           ...all.filter(m => ["IN_PLAY","PAUSED","HALFTIME"].includes(m.status)),
-          ...all.filter(m => m.status === "TIMED" || m.status === "SCHEDULED").slice(0,20),
-          ...all.filter(m => m.status === "FINISHED").slice(-10),
+          ...all.filter(m => m.status === "TIMED" || m.status === "SCHEDULED"),
+          ...all.filter(m => m.status === "FINISHED").slice(-15),
         ]);
         setKnockoutMatches(all.filter(m => m.stage && !m.stage.includes("GROUP")));
       }
@@ -292,7 +292,7 @@ export default function App() {
   const getRoast = seed => ROASTS[seed % ROASTS.length];
 
   const matchStatusLabel = m => {
-    if (m.status === "IN_PLAY") return `🔴 ${m.minute || ""}' LIVE`;
+    if (m.status === "IN_PLAY") return `🔴 ${m.minute ? `${m.minute}' ` : ""}LIVE`;
     if (m.status === "HALFTIME") return "⏸ Half Time";
     if (m.status === "PAUSED") return "⏸ Paused";
     if (m.status === "FINISHED") return "FT";
@@ -304,6 +304,14 @@ export default function App() {
   };
 
   const getFlag = name => WC_TEAMS.find(t => t.name === name || name?.includes(t.name))?.flag || "🏳️";
+
+  const getOwnerBanner = (homeOwners, awayOwners) => {
+    const names = [...new Set([...homeOwners, ...awayOwners].map(o => o.name))];
+    if (names.length === 0) return null;
+    if (names.length === 1) return `${names[0]}'s team is playing!`;
+    if (names.length === 2) return `${names[0]} & ${names[1]}'s teams are playing!`;
+    return `${names.slice(0,-1).join(", ")} & ${names[names.length-1]}'s teams are playing!`;
+  };
 
   const visibleTeams = WC_TEAMS.filter(t => {
     const ok = !takenTeams.includes(t.name) || selectedTeams.includes(t.name);
@@ -392,7 +400,7 @@ export default function App() {
               {getFlag(m.homeTeam?.name)} {m.homeTeam?.shortName || m.homeTeam?.name}
               <span style={{ color:"#00d46a", margin:"0 6px", fontWeight:800 }}>{m.score?.fullTime?.home ?? 0} – {m.score?.fullTime?.away ?? 0}</span>
               {getFlag(m.awayTeam?.name)} {m.awayTeam?.shortName || m.awayTeam?.name}
-              <span style={{ color:"#ef4444", marginLeft:8, fontSize:11 }}>{m.minute}'</span>
+              <span style={{ color:"#ef4444", marginLeft:8, fontSize:11 }}>{m.minute ? `${m.minute}'` : ""}</span>
             </span>
           ))}
         </div>
@@ -438,53 +446,48 @@ export default function App() {
                 <p style={{ fontSize:12, fontWeight:700, color:"#ef4444", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:12, display:"flex", alignItems:"center", gap:6 }}>
                   <span className="live-pulse" />LIVE MATCHES
                 </p>
-               {liveMatches.map(m => {
-  const homeOwners = participants.filter(p => p.teams.some(t => m.homeTeam?.name?.includes(t) || t.includes(m.homeTeam?.name)));
-  const awayOwners = participants.filter(p => p.teams.some(t => m.awayTeam?.name?.includes(t) || t.includes(m.awayTeam?.name)));
-  const hasOfficeTeam = homeOwners.length > 0 || awayOwners.length > 0;
-  const scorers = (m.goals || []).filter(g => g.type === "REGULAR" || !g.type);
-  const kickoff = new Date(m.utcDate).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
-  return (
-    <div key={m.id} className="match-card live" style={hasOfficeTeam ? { borderColor:"rgba(0,212,106,0.4)", background:"rgba(0,212,106,0.05)" } : {}}>
-      {hasOfficeTeam && (
-        <div style={{ fontSize:11, fontWeight:700, color:"#00d46a", marginBottom:8 }}>
-         ⭐ {(() => {
-  const names = [...new Set([...homeOwners, ...awayOwners].map(o => o.name))];
-  if (names.length === 1) return `${names[0]}'s team is playing!`;
-  if (names.length === 2) return `${names[0]} & ${names[1]}'s teams are playing!`;
-  return `${names.slice(0,-1).join(", ")} & ${names[names.length-1]}'s teams are playing!`;
-})()}
-        </div>
-      )}
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:8, flex:1 }}>
-          <span style={{ fontSize:18 }}>{getFlag(m.homeTeam?.name)}</span>
-          <span style={{ fontWeight:700, fontSize:14 }}>{m.homeTeam?.shortName || m.homeTeam?.name}</span>
-          {homeOwners.length > 0 && homeOwners.map(o => <span key={o.id} style={{ background:o.color, color:"#fff", fontSize:9, fontWeight:700, padding:"1px 5px", borderRadius:99 }}>{getInitials(o.name)}</span>)}
-        </div>
-        <div style={{ textAlign:"center", padding:"0 12px" }}>
-          <div style={{ fontSize:20, fontWeight:800, color:"#00d46a" }}>{m.score?.fullTime?.home ?? 0} – {m.score?.fullTime?.away ?? 0}</div>
-          <div style={{ fontSize:11, color:"#ef4444", fontWeight:700 }}>{m.minute}' LIVE</div>
-          <div style={{ fontSize:10, color:"#6b9aad", marginTop:2 }}>KO {kickoff}</div>
-        </div>
-        <div style={{ display:"flex", alignItems:"center", gap:8, flex:1, justifyContent:"flex-end" }}>
-          {awayOwners.length > 0 && awayOwners.map(o => <span key={o.id} style={{ background:o.color, color:"#fff", fontSize:9, fontWeight:700, padding:"1px 5px", borderRadius:99 }}>{getInitials(o.name)}</span>)}
-          <span style={{ fontWeight:700, fontSize:14 }}>{m.awayTeam?.shortName || m.awayTeam?.name}</span>
-          <span style={{ fontSize:18 }}>{getFlag(m.awayTeam?.name)}</span>
-        </div>
-      </div>
-      {scorers.length > 0 && (
-        <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid rgba(255,255,255,0.08)", fontSize:11, color:"#a0b8c8" }}>
-          ⚽ {scorers.map((g,gi) => (
-            <span key={gi}>
-              {g.scorer?.name || "Unknown"} {g.minute}'{gi < scorers.length - 1 ? " · " : ""}
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-})}
+                {liveMatches.map(m => {
+                  const homeOwners = participants.filter(p => p.teams.some(t => m.homeTeam?.name?.includes(t) || t.includes(m.homeTeam?.name)));
+                  const awayOwners = participants.filter(p => p.teams.some(t => m.awayTeam?.name?.includes(t) || t.includes(m.awayTeam?.name)));
+                  const banner = getOwnerBanner(homeOwners, awayOwners);
+                  const scorers = (m.goals || []).filter(g => g.type === "REGULAR" || !g.type);
+                  const kickoff = new Date(m.utcDate).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
+                  return (
+                    <div key={m.id} className="match-card live" style={banner ? { borderColor:"rgba(0,212,106,0.4)", background:"rgba(0,212,106,0.05)" } : {}}>
+                      {banner && (
+                        <div style={{ fontSize:11, fontWeight:700, color:"#00d46a", marginBottom:8 }}>
+                          ⭐ {banner}
+                        </div>
+                      )}
+                      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:8, flex:1 }}>
+                          <span style={{ fontSize:18 }}>{getFlag(m.homeTeam?.name)}</span>
+                          <span style={{ fontWeight:700, fontSize:14 }}>{m.homeTeam?.shortName || m.homeTeam?.name}</span>
+                          {homeOwners.map(o => <span key={o.id} style={{ background:o.color, color:"#fff", fontSize:9, fontWeight:700, padding:"1px 5px", borderRadius:99 }}>{getInitials(o.name)}</span>)}
+                        </div>
+                        <div style={{ textAlign:"center", padding:"0 12px" }}>
+                          <div style={{ fontSize:20, fontWeight:800, color:"#00d46a" }}>{m.score?.fullTime?.home ?? 0} – {m.score?.fullTime?.away ?? 0}</div>
+                          <div style={{ fontSize:11, color:"#ef4444", fontWeight:700 }}>{m.minute ? `${m.minute}' ` : ""}LIVE</div>
+                          <div style={{ fontSize:10, color:"#6b9aad", marginTop:2 }}>KO {kickoff}</div>
+                        </div>
+                        <div style={{ display:"flex", alignItems:"center", gap:8, flex:1, justifyContent:"flex-end" }}>
+                          {awayOwners.map(o => <span key={o.id} style={{ background:o.color, color:"#fff", fontSize:9, fontWeight:700, padding:"1px 5px", borderRadius:99 }}>{getInitials(o.name)}</span>)}
+                          <span style={{ fontWeight:700, fontSize:14 }}>{m.awayTeam?.shortName || m.awayTeam?.name}</span>
+                          <span style={{ fontSize:18 }}>{getFlag(m.awayTeam?.name)}</span>
+                        </div>
+                      </div>
+                      {scorers.length > 0 && (
+                        <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid rgba(255,255,255,0.08)", fontSize:11, color:"#a0b8c8" }}>
+                          ⚽ {scorers.map((g,gi) => (
+                            <span key={gi}>
+                              {g.scorer?.name || "Unknown"} {g.minute}'{gi < scorers.length - 1 ? " · " : ""}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
 
@@ -521,74 +524,69 @@ export default function App() {
             </div>
             {apiError && <div style={{ ...S.card, padding:"24px", textAlign:"center", color:"#f59e0b", marginBottom:14 }}>⚠️ Could not load live data</div>}
             {fixtures.length === 0 && !apiError && <div style={{ textAlign:"center", color:"#6b9aad", padding:"40px 0" }}>Loading fixtures...</div>}
-           {fixtures.map(m => {
-  const isLive = ["IN_PLAY","PAUSED","HALFTIME"].includes(m.status);
-  const isDone = m.status === "FINISHED";
-  const owners = name => participants.filter(p => p.teams.some(t => name?.includes(t) || t.includes(name)));
-  const homeOwners = owners(m.homeTeam?.name);
-  const awayOwners = owners(m.awayTeam?.name);
-  const hasOfficeTeam = homeOwners.length > 0 || awayOwners.length > 0;
-  const scorers = (m.goals || []).filter(g => g.type === "REGULAR" || !g.type);
-  const kickoff = new Date(m.utcDate).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
-  return (
-    <div key={m.id} className={`match-card ${isLive?"live":""}`} style={hasOfficeTeam && !isLive ? { borderColor:"rgba(0,212,106,0.4)", background:"rgba(0,212,106,0.05)" } : {}}>
-      {hasOfficeTeam && (
-        <div style={{ fontSize:11, fontWeight:700, color:"#00d46a", marginBottom:8 }}>
-         ⭐ {(() => {
-  const names = [...new Set([...homeOwners, ...awayOwners].map(o => o.name))];
-  if (names.length === 1) return `${names[0]}'s team is playing!`;
-  if (names.length === 2) return `${names[0]} & ${names[1]}'s teams are playing!`;
-  return `${names.slice(0,-1).join(", ")} & ${names[names.length-1]}'s teams are playing!`;
-})()}
-        </div>
-      )}
-      <div style={{ fontSize:11, color:isLive?"#ef4444":"#6b9aad", fontWeight:700, marginBottom:8 }}>
-        {isLive && <span className="live-pulse" style={{ marginRight:6 }} />}
-        {matchStatusLabel(m)}
-        {isLive && <span style={{ marginLeft:8, color:"#6b9aad", fontWeight:400 }}>· KO {kickoff}</span>}
-        {m.group && <span style={{ marginLeft:8, color:"#6b9aad", fontWeight:400 }}>· Group {m.group?.replace("GROUP_","")}</span>}
-      </div>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <div style={{ flex:1 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <span style={{ fontSize:20 }}>{getFlag(m.homeTeam?.name)}</span>
-            <div>
-              <div style={{ fontWeight:700, fontSize:14 }}>{m.homeTeam?.name}</div>
-              <div style={{ display:"flex", gap:3, marginTop:2 }}>
-                {homeOwners.map(o => <span key={o.id} style={{ background:o.color, color:"#fff", fontSize:9, fontWeight:700, padding:"1px 5px", borderRadius:99 }}>{getInitials(o.name)}</span>)}
-              </div>
-            </div>
-          </div>
-        </div>
-        <div style={{ textAlign:"center", padding:"0 16px" }}>
-          {(isLive||isDone)
-            ? <div style={{ fontSize:22, fontWeight:800, color:"#00d46a" }}>{m.score?.fullTime?.home ?? 0} – {m.score?.fullTime?.away ?? 0}</div>
-            : <div style={{ fontSize:16, fontWeight:700, color:"#6b9aad" }}>vs</div>}
-        </div>
-        <div style={{ flex:1, textAlign:"right" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:8, justifyContent:"flex-end" }}>
-            <div>
-              <div style={{ fontWeight:700, fontSize:14 }}>{m.awayTeam?.name}</div>
-              <div style={{ display:"flex", gap:3, marginTop:2, justifyContent:"flex-end" }}>
-                {awayOwners.map(o => <span key={o.id} style={{ background:o.color, color:"#fff", fontSize:9, fontWeight:700, padding:"1px 5px", borderRadius:99 }}>{getInitials(o.name)}</span>)}
-              </div>
-            </div>
-            <span style={{ fontSize:20 }}>{getFlag(m.awayTeam?.name)}</span>
-          </div>
-        </div>
-      </div>
-      {scorers.length > 0 && (
-        <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid rgba(255,255,255,0.08)", fontSize:11, color:"#a0b8c8" }}>
-          ⚽ {scorers.map((g,gi) => (
-            <span key={gi}>
-              {g.scorer?.name || "Unknown"} {g.minute}'{gi < scorers.length - 1 ? " · " : ""}
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-})}
+            {fixtures.map(m => {
+              const isLive = ["IN_PLAY","PAUSED","HALFTIME"].includes(m.status);
+              const isDone = m.status === "FINISHED";
+              const owners = name => participants.filter(p => p.teams.some(t => name?.includes(t) || t.includes(name)));
+              const homeOwners = owners(m.homeTeam?.name);
+              const awayOwners = owners(m.awayTeam?.name);
+              const banner = getOwnerBanner(homeOwners, awayOwners);
+              const scorers = (m.goals || []).filter(g => g.type === "REGULAR" || !g.type);
+              const kickoff = new Date(m.utcDate).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
+              return (
+                <div key={m.id} className={`match-card ${isLive?"live":""}`} style={banner && !isLive ? { borderColor:"rgba(0,212,106,0.4)", background:"rgba(0,212,106,0.05)" } : {}}>
+                  {banner && (
+                    <div style={{ fontSize:11, fontWeight:700, color:"#00d46a", marginBottom:8 }}>
+                      ⭐ {banner}
+                    </div>
+                  )}
+                  <div style={{ fontSize:11, color:isLive?"#ef4444":"#6b9aad", fontWeight:700, marginBottom:8 }}>
+                    {isLive && <span className="live-pulse" style={{ marginRight:6 }} />}
+                    {matchStatusLabel(m)}
+                    {isLive && <span style={{ marginLeft:8, color:"#6b9aad", fontWeight:400 }}>· KO {kickoff}</span>}
+                    {m.group && <span style={{ marginLeft:8, color:"#6b9aad", fontWeight:400 }}>· Group {m.group?.replace("GROUP_","")}</span>}
+                  </div>
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                    <div style={{ flex:1 }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                        <span style={{ fontSize:20 }}>{getFlag(m.homeTeam?.name)}</span>
+                        <div>
+                          <div style={{ fontWeight:700, fontSize:14 }}>{m.homeTeam?.name}</div>
+                          <div style={{ display:"flex", gap:3, marginTop:2 }}>
+                            {homeOwners.map(o => <span key={o.id} style={{ background:o.color, color:"#fff", fontSize:9, fontWeight:700, padding:"1px 5px", borderRadius:99 }}>{getInitials(o.name)}</span>)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ textAlign:"center", padding:"0 16px" }}>
+                      {(isLive||isDone)
+                        ? <div style={{ fontSize:22, fontWeight:800, color:"#00d46a" }}>{m.score?.fullTime?.home ?? 0} – {m.score?.fullTime?.away ?? 0}</div>
+                        : <div style={{ fontSize:16, fontWeight:700, color:"#6b9aad" }}>vs</div>}
+                    </div>
+                    <div style={{ flex:1, textAlign:"right" }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:8, justifyContent:"flex-end" }}>
+                        <div>
+                          <div style={{ fontWeight:700, fontSize:14 }}>{m.awayTeam?.name}</div>
+                          <div style={{ display:"flex", gap:3, marginTop:2, justifyContent:"flex-end" }}>
+                            {awayOwners.map(o => <span key={o.id} style={{ background:o.color, color:"#fff", fontSize:9, fontWeight:700, padding:"1px 5px", borderRadius:99 }}>{getInitials(o.name)}</span>)}
+                          </div>
+                        </div>
+                        <span style={{ fontSize:20 }}>{getFlag(m.awayTeam?.name)}</span>
+                      </div>
+                    </div>
+                  </div>
+                  {scorers.length > 0 && (
+                    <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid rgba(255,255,255,0.08)", fontSize:11, color:"#a0b8c8" }}>
+                      ⚽ {scorers.map((g,gi) => (
+                        <span key={gi}>
+                          {g.scorer?.name || "Unknown"} {g.minute}'{gi < scorers.length - 1 ? " · " : ""}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 
