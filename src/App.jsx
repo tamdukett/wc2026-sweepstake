@@ -107,6 +107,7 @@ export default function App() {
   const [leaderId, setLeaderId] = useState(null);
   const [h2hA, setH2hA] = useState(null);
   const [h2hB, setH2hB] = useState(null);
+  const [previousEnriched, setPreviousEnriched] = useState([]);
   const liveTimer = useRef(null);
 
   const loadParticipants = useCallback(async () => {
@@ -277,6 +278,10 @@ export default function App() {
     setLeaderId(currentLeader);
   }, [standings]);
 
+  useEffect(() => {
+    setPreviousEnriched(enriched);
+  }, [standings]);
+
   const filtered = enriched.filter(p =>
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.teams.some(t => t.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -368,42 +373,27 @@ export default function App() {
       `}</style>
 
       <div style={{ position:"fixed", inset:0, pointerEvents:"none", zIndex:0, overflow:"hidden" }}>
-  <svg width="100%" height="100%" viewBox="0 0 400 600" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" style={{ opacity:0.06 }}>
-    {/* Pitch outline */}
-    <rect x="20" y="20" width="360" height="560" fill="none" stroke="#00d46a" strokeWidth="2"/>
-    {/* Halfway line */}
-    <line x1="20" y1="300" x2="380" y2="300" stroke="#00d46a" strokeWidth="1.5"/>
-    {/* Centre circle */}
-    <circle cx="200" cy="300" r="50" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
-    {/* Centre spot */}
-    <circle cx="200" cy="300" r="3" fill="#00d46a"/>
-    {/* Top penalty box */}
-    <rect x="90" y="20" width="220" height="80" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
-    {/* Top six yard box */}
-    <rect x="140" y="20" width="120" height="30" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
-    {/* Top penalty spot */}
-    <circle cx="200" cy="80" r="2.5" fill="#00d46a"/>
-    {/* Top penalty arc */}
-    <path d="M 155 100 A 50 50 0 0 1 245 100" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
-    {/* Bottom penalty box */}
-    <rect x="90" y="500" width="220" height="80" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
-    {/* Bottom six yard box */}
-    <rect x="140" y="550" width="120" height="30" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
-    {/* Bottom penalty spot */}
-    <circle cx="200" cy="520" r="2.5" fill="#00d46a"/>
-    {/* Bottom penalty arc */}
-    <path d="M 155 500 A 50 50 0 0 0 245 500" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
-    {/* Corner arcs */}
-    <path d="M 20 40 A 20 20 0 0 1 40 20" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
-    <path d="M 360 20 A 20 20 0 0 1 380 40" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
-    <path d="M 20 560 A 20 20 0 0 0 40 580" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
-    <path d="M 380 560 A 20 20 0 0 1 360 580" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
-    {/* Goal top */}
-    <rect x="160" y="8" width="80" height="14" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
-    {/* Goal bottom */}
-    <rect x="160" y="578" width="80" height="14" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
-  </svg>
-</div>
+        <svg width="100%" height="100%" viewBox="0 0 400 600" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" style={{ opacity:0.06 }}>
+          <rect x="20" y="20" width="360" height="560" fill="none" stroke="#00d46a" strokeWidth="2"/>
+          <line x1="20" y1="300" x2="380" y2="300" stroke="#00d46a" strokeWidth="1.5"/>
+          <circle cx="200" cy="300" r="50" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
+          <circle cx="200" cy="300" r="3" fill="#00d46a"/>
+          <rect x="90" y="20" width="220" height="80" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
+          <rect x="140" y="20" width="120" height="30" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
+          <circle cx="200" cy="80" r="2.5" fill="#00d46a"/>
+          <path d="M 155 100 A 50 50 0 0 1 245 100" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
+          <rect x="90" y="500" width="220" height="80" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
+          <rect x="140" y="550" width="120" height="30" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
+          <circle cx="200" cy="520" r="2.5" fill="#00d46a"/>
+          <path d="M 155 500 A 50 50 0 0 0 245 500" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
+          <path d="M 20 40 A 20 20 0 0 1 40 20" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
+          <path d="M 360 20 A 20 20 0 0 1 380 40" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
+          <path d="M 20 560 A 20 20 0 0 0 40 580" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
+          <path d="M 380 560 A 20 20 0 0 1 360 580" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
+          <rect x="160" y="8" width="80" height="14" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
+          <rect x="160" y="578" width="80" height="14" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
+        </svg>
+      </div>
 
       {confettiTrigger > 0 && (
         <div key={confettiTrigger} style={{ position:"fixed", inset:0, pointerEvents:"none", zIndex:999, overflow:"hidden" }}>
@@ -453,7 +443,7 @@ export default function App() {
         </div>
 
         <div style={{ display:"flex", gap:8, marginBottom:24, flexWrap:"wrap" }}>
-          {[["home","🏠 Home"],["leaderboard","📊 Leaderboard"],["headtohead","⚔️ Head-to-Head"],["fixtures","📅 Fixtures"],["standings","🌍 Groups"],["knockout","🏆 Bracket"],["register","➕ Join"]].map(([id,label]) => (
+          {[["home","🏠 Home"],["leaderboard","📊 Leaderboard"],["headtohead","⚔️ Head-to-Head"],["pulse","💓 Office Pulse"],["fixtures","📅 Fixtures"],["standings","🌍 Groups"],["knockout","🏆 Bracket"],["register","➕ Join"]].map(([id,label]) => (
             <button key={id} className={`nb ${screen===id?"on":""}`} onClick={() => setScreen(id)}>{label}</button>
           ))}
           <button className={`nb ${screen==="admin"?"on":""}`} style={{ marginLeft:"auto" }} onClick={() => setScreen("admin")}>⚙️</button>
@@ -475,7 +465,48 @@ export default function App() {
                 ))}
               </div>
               <button style={S.btn} onClick={() => setScreen("register")}>Join the Sweepstake →</button>
+              {(() => {
+                const totalMatches = 104;
+                const played = fixtures.filter(m => m.status === "FINISHED").length;
+                const pct = Math.round((played / totalMatches) * 100);
+                return (
+                  <div style={{ marginTop:18 }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, color:"#6b9aad", marginBottom:6 }}>
+                      <span style={{ fontWeight:600 }}>🏆 Tournament Progress</span>
+                      <span>{played} of {totalMatches} matches played</span>
+                    </div>
+                    <div style={{ height:8, borderRadius:99, background:"rgba(255,255,255,0.08)", overflow:"hidden" }}>
+                      <div style={{ height:"100%", width:`${pct}%`, background:"linear-gradient(90deg,#00d46a,#00b359)", borderRadius:99, transition:"width 0.6s ease" }} />
+                    </div>
+                    <div style={{ textAlign:"right", fontSize:11, color:"#00d46a", marginTop:4, fontWeight:600 }}>{pct}% complete</div>
+                  </div>
+                );
+              })()}
             </div>
+
+            {(() => {
+              if (enriched.length < 2 || previousEnriched.length === 0) return null;
+              const movers = enriched.map(p => {
+                const prev = previousEnriched.find(x => x.id === p.id);
+                return { ...p, gained: prev ? p.totalPts - prev.totalPts : 0 };
+              }).filter(p => p.gained > 0).sort((a,b) => b.gained - a.gained);
+              const biggest = movers[0];
+              if (!biggest) return null;
+              return (
+                <div style={{ ...S.card, padding:"14px 18px", marginBottom:14, display:"flex", alignItems:"center", gap:12 }}>
+                  <div style={{ fontSize:28 }}>🚀</div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:11, fontWeight:700, color:"#6b9aad", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:2 }}>Biggest Mover</div>
+                    <div style={{ fontWeight:700, fontSize:15 }}>{biggest.name}</div>
+                    <div style={{ fontSize:12, color:"#6b9aad" }}>gained the most points this refresh</div>
+                  </div>
+                  <div style={{ textAlign:"right" }}>
+                    <div style={{ fontSize:20, fontWeight:800, color:"#00d46a" }}>+{biggest.gained}</div>
+                    <div style={{ fontSize:11, color:"#6b9aad" }}>pts</div>
+                  </div>
+                </div>
+              );
+            })()}
 
             {liveMatches.length > 0 && (
               <div style={{ ...S.card, padding:"16px 20px", marginBottom:14 }}>
@@ -490,11 +521,7 @@ export default function App() {
                   const kickoff = new Date(m.utcDate).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
                   return (
                     <div key={m.id} className="match-card live" style={banner ? { borderColor:"rgba(0,212,106,0.4)", background:"rgba(0,212,106,0.05)" } : {}}>
-                      {banner && (
-                        <div style={{ fontSize:11, fontWeight:700, color:"#00d46a", marginBottom:8 }}>
-                          ⭐ {banner}
-                        </div>
-                      )}
+                      {banner && <div style={{ fontSize:11, fontWeight:700, color:"#00d46a", marginBottom:8 }}>⭐ {banner}</div>}
                       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                         <div style={{ display:"flex", alignItems:"center", gap:8, flex:1 }}>
                           <span style={{ fontSize:18 }}>{getFlag(m.homeTeam?.name)}</span>
@@ -513,44 +540,36 @@ export default function App() {
                         </div>
                       </div>
                       {scorers.length > 0 && (
-  <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid rgba(255,255,255,0.08)", fontSize:11, color:"#a0b8c8" }}>
-    ⚽ {scorers.map((g,gi) => (
-      <span key={gi}>
-        {g.scorer?.name || "Unknown"} {g.minute}'{gi < scorers.length - 1 ? " · " : ""}
-      </span>
-    ))}
-  </div>
-)}
-{(() => {
-  const sH = standings[m.homeTeam?.name] || {};
-  const sA = standings[m.awayTeam?.name] || {};
-  const hasData = sH.played > 0 || sA.played > 0;
-  if (!hasData) return null;
-  const scoreH = (sH.pts || 0) * 3 + (sH.won || 0) * 2 + (sH.gf || 0) * 0.5 + (sH.gd || 0) * 0.3 + 3;
-  const scoreA = (sA.pts || 0) * 3 + (sA.won || 0) * 2 + (sA.gf || 0) * 0.5 + (sA.gd || 0) * 0.3 + 3;
-  const drawWeight = (scoreH + scoreA) * 0.25;
-  const total = scoreH + scoreA + drawWeight;
-  const winH = Math.round((scoreH / total) * 100);
-  const winA = Math.round((scoreA / total) * 100);
-  const draw = 100 - winH - winA;
-  const homeShort = m.homeTeam?.shortName || m.homeTeam?.name?.split(" ")[0] || "Home";
-  const awayShort = m.awayTeam?.shortName || m.awayTeam?.name?.split(" ")[0] || "Away";
-  return (
-    <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid rgba(255,255,255,0.06)" }}>
-      <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"#6b9aad", marginBottom:5, fontWeight:600 }}>
-        <span>{homeShort} {winH}%</span>
-        <span style={{ color:"#4a6a7a" }}>Draw {draw}%</span>
-        <span>{winA}% {awayShort}</span>
-      </div>
-      <div style={{ height:5, borderRadius:99, background:"rgba(255,255,255,0.06)", overflow:"hidden", display:"flex" }}>
-        <div style={{ width:`${winH}%`, background:"#00d46a", borderRadius:"99px 0 0 99px" }} />
-        <div style={{ width:`${draw}%`, background:"rgba(255,255,255,0.15)" }} />
-        <div style={{ width:`${winA}%`, background:"#3a86ff", borderRadius:"0 99px 99px 0" }} />
-      </div>
-      <div style={{ fontSize:9, color:"#3a5a6a", marginTop:4, textAlign:"center" }}>Based on current group stage stats · Not a guarantee</div>
-    </div>
-  );
-})()}
+                        <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid rgba(255,255,255,0.08)", fontSize:11, color:"#a0b8c8" }}>
+                          ⚽ {scorers.map((g,gi) => <span key={gi}>{g.scorer?.name || "Unknown"} {g.minute}'{gi < scorers.length - 1 ? " · " : ""}</span>)}
+                        </div>
+                      )}
+                      {(() => {
+                        const sH = standings[m.homeTeam?.name] || {};
+                        const sA = standings[m.awayTeam?.name] || {};
+                        if (!sH.played && !sA.played) return null;
+                        const scoreH = (sH.pts||0)*3+(sH.won||0)*2+(sH.gf||0)*0.5+(sH.gd||0)*0.3+3;
+                        const scoreA = (sA.pts||0)*3+(sA.won||0)*2+(sA.gf||0)*0.5+(sA.gd||0)*0.3+3;
+                        const total = scoreH + scoreA + (scoreH+scoreA)*0.25;
+                        const winH = Math.round((scoreH/total)*100);
+                        const winA = Math.round((scoreA/total)*100);
+                        const draw = 100-winH-winA;
+                        const hShort = m.homeTeam?.shortName||m.homeTeam?.name?.split(" ")[0]||"Home";
+                        const aShort = m.awayTeam?.shortName||m.awayTeam?.name?.split(" ")[0]||"Away";
+                        return (
+                          <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid rgba(255,255,255,0.06)" }}>
+                            <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"#6b9aad", marginBottom:5, fontWeight:600 }}>
+                              <span>{hShort} {winH}%</span><span style={{ color:"#4a6a7a" }}>Draw {draw}%</span><span>{winA}% {aShort}</span>
+                            </div>
+                            <div style={{ height:5, borderRadius:99, background:"rgba(255,255,255,0.06)", overflow:"hidden", display:"flex" }}>
+                              <div style={{ width:`${winH}%`, background:"#00d46a", borderRadius:"99px 0 0 99px" }} />
+                              <div style={{ width:`${draw}%`, background:"rgba(255,255,255,0.15)" }} />
+                              <div style={{ width:`${winA}%`, background:"#3a86ff", borderRadius:"0 99px 99px 0" }} />
+                            </div>
+                            <div style={{ fontSize:9, color:"#3a5a6a", marginTop:4, textAlign:"center" }}>Based on current group stage stats · Not a guarantee</div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                 })}
@@ -601,11 +620,7 @@ export default function App() {
               const kickoff = new Date(m.utcDate).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
               return (
                 <div key={m.id} className={`match-card ${isLive?"live":""}`} style={banner && !isLive ? { borderColor:"rgba(0,212,106,0.4)", background:"rgba(0,212,106,0.05)" } : {}}>
-                  {banner && (
-                    <div style={{ fontSize:11, fontWeight:700, color:"#00d46a", marginBottom:8 }}>
-                      ⭐ {banner}
-                    </div>
-                  )}
+                  {banner && <div style={{ fontSize:11, fontWeight:700, color:"#00d46a", marginBottom:8 }}>⭐ {banner}</div>}
                   <div style={{ fontSize:11, color:isLive?"#ef4444":"#6b9aad", fontWeight:700, marginBottom:8 }}>
                     {isLive && <span className="live-pulse" style={{ marginRight:6 }} />}
                     {matchStatusLabel(m)}
@@ -642,44 +657,36 @@ export default function App() {
                     </div>
                   </div>
                   {scorers.length > 0 && (
-  <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid rgba(255,255,255,0.08)", fontSize:11, color:"#a0b8c8" }}>
-    ⚽ {scorers.map((g,gi) => (
-      <span key={gi}>
-        {g.scorer?.name || "Unknown"} {g.minute}'{gi < scorers.length - 1 ? " · " : ""}
-      </span>
-    ))}
-  </div>
-)}
-{(() => {
-  const sH = standings[m.homeTeam?.name] || {};
-  const sA = standings[m.awayTeam?.name] || {};
-  const hasData = sH.played > 0 || sA.played > 0;
-  if (!hasData) return null;
-  const scoreH = (sH.pts || 0) * 3 + (sH.won || 0) * 2 + (sH.gf || 0) * 0.5 + (sH.gd || 0) * 0.3 + 3;
-  const scoreA = (sA.pts || 0) * 3 + (sA.won || 0) * 2 + (sA.gf || 0) * 0.5 + (sA.gd || 0) * 0.3 + 3;
-  const drawWeight = (scoreH + scoreA) * 0.25;
-  const total = scoreH + scoreA + drawWeight;
-  const winH = Math.round((scoreH / total) * 100);
-  const winA = Math.round((scoreA / total) * 100);
-  const draw = 100 - winH - winA;
-  const homeShort = m.homeTeam?.shortName || m.homeTeam?.name?.split(" ")[0] || "Home";
-  const awayShort = m.awayTeam?.shortName || m.awayTeam?.name?.split(" ")[0] || "Away";
-  return (
-    <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid rgba(255,255,255,0.06)" }}>
-      <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"#6b9aad", marginBottom:5, fontWeight:600 }}>
-        <span>{homeShort} {winH}%</span>
-        <span style={{ color:"#4a6a7a" }}>Draw {draw}%</span>
-        <span>{winA}% {awayShort}</span>
-      </div>
-      <div style={{ height:5, borderRadius:99, background:"rgba(255,255,255,0.06)", overflow:"hidden", display:"flex" }}>
-        <div style={{ width:`${winH}%`, background:"#00d46a", borderRadius:"99px 0 0 99px" }} />
-        <div style={{ width:`${draw}%`, background:"rgba(255,255,255,0.15)" }} />
-        <div style={{ width:`${winA}%`, background:"#3a86ff", borderRadius:"0 99px 99px 0" }} />
-      </div>
-      <div style={{ fontSize:9, color:"#3a5a6a", marginTop:4, textAlign:"center" }}>Based on current group stage stats · Not a guarantee</div>
-    </div>
-  );
-})()}
+                    <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid rgba(255,255,255,0.08)", fontSize:11, color:"#a0b8c8" }}>
+                      ⚽ {scorers.map((g,gi) => <span key={gi}>{g.scorer?.name || "Unknown"} {g.minute}'{gi < scorers.length - 1 ? " · " : ""}</span>)}
+                    </div>
+                  )}
+                  {(() => {
+                    const sH = standings[m.homeTeam?.name] || {};
+                    const sA = standings[m.awayTeam?.name] || {};
+                    if (!sH.played && !sA.played) return null;
+                    const scoreH = (sH.pts||0)*3+(sH.won||0)*2+(sH.gf||0)*0.5+(sH.gd||0)*0.3+3;
+                    const scoreA = (sA.pts||0)*3+(sA.won||0)*2+(sA.gf||0)*0.5+(sA.gd||0)*0.3+3;
+                    const total = scoreH + scoreA + (scoreH+scoreA)*0.25;
+                    const winH = Math.round((scoreH/total)*100);
+                    const winA = Math.round((scoreA/total)*100);
+                    const draw = 100-winH-winA;
+                    const hShort = m.homeTeam?.shortName||m.homeTeam?.name?.split(" ")[0]||"Home";
+                    const aShort = m.awayTeam?.shortName||m.awayTeam?.name?.split(" ")[0]||"Away";
+                    return (
+                      <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid rgba(255,255,255,0.06)" }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"#6b9aad", marginBottom:5, fontWeight:600 }}>
+                          <span>{hShort} {winH}%</span><span style={{ color:"#4a6a7a" }}>Draw {draw}%</span><span>{winA}% {aShort}</span>
+                        </div>
+                        <div style={{ height:5, borderRadius:99, background:"rgba(255,255,255,0.06)", overflow:"hidden", display:"flex" }}>
+                          <div style={{ width:`${winH}%`, background:"#00d46a", borderRadius:"99px 0 0 99px" }} />
+                          <div style={{ width:`${draw}%`, background:"rgba(255,255,255,0.15)" }} />
+                          <div style={{ width:`${winA}%`, background:"#3a86ff", borderRadius:"0 99px 99px 0" }} />
+                        </div>
+                        <div style={{ fontSize:9, color:"#3a5a6a", marginTop:4, textAlign:"center" }}>Based on current group stage stats · Not a guarantee</div>
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })}
@@ -802,162 +809,161 @@ export default function App() {
                     </select>
                   </div>
                 </div>
-
                 {h2hPlayerA && h2hPlayerB && h2hPlayerA.id !== h2hPlayerB.id ? (
-  <div>
-    <div style={{ ...S.card, padding:"20px", marginBottom:14, textAlign:"center" }}>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:20 }}>
-        <div style={{ flex:1 }}>
-          <div style={{ width:50, height:50, borderRadius:"50%", background:h2hPlayerA.color, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700, fontSize:16, color:"#fff", margin:"0 auto 8px" }}>{getInitials(h2hPlayerA.name)}</div>
-          <div style={{ fontWeight:700, fontSize:15 }}>{h2hPlayerA.name}</div>
-          <div style={{ fontSize:28, fontWeight:800, color: h2hPlayerA.totalPts >= h2hPlayerB.totalPts ? "#00d46a" : "#6b9aad" }}>{h2hPlayerA.totalPts}</div>
-        </div>
-        <div style={{ fontSize:18, fontWeight:700, color:"#6b9aad" }}>VS</div>
-        <div style={{ flex:1 }}>
-          <div style={{ width:50, height:50, borderRadius:"50%", background:h2hPlayerB.color, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700, fontSize:16, color:"#fff", margin:"0 auto 8px" }}>{getInitials(h2hPlayerB.name)}</div>
-          <div style={{ fontWeight:700, fontSize:15 }}>{h2hPlayerB.name}</div>
-          <div style={{ fontSize:28, fontWeight:800, color: h2hPlayerB.totalPts >= h2hPlayerA.totalPts ? "#00d46a" : "#6b9aad" }}>{h2hPlayerB.totalPts}</div>
-        </div>
-      </div>
-      <div style={{ marginTop:14, fontSize:13, color:"#6b9aad" }}>
-        {h2hPlayerA.totalPts === h2hPlayerB.totalPts
-          ? "Dead even — anyone's game"
-          : `${h2hPlayerA.totalPts > h2hPlayerB.totalPts ? h2hPlayerA.name : h2hPlayerB.name} is ahead by ${Math.abs(h2hPlayerA.totalPts - h2hPlayerB.totalPts)} pts`}
-      </div>
-    </div>
+                  <div>
+                    <div style={{ ...S.card, padding:"20px", marginBottom:14, textAlign:"center" }}>
+                      <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:20 }}>
+                        <div style={{ flex:1 }}>
+                          <div style={{ width:50, height:50, borderRadius:"50%", background:h2hPlayerA.color, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700, fontSize:16, color:"#fff", margin:"0 auto 8px" }}>{getInitials(h2hPlayerA.name)}</div>
+                          <div style={{ fontWeight:700, fontSize:15 }}>{h2hPlayerA.name}</div>
+                          <div style={{ fontSize:28, fontWeight:800, color: h2hPlayerA.totalPts >= h2hPlayerB.totalPts ? "#00d46a" : "#6b9aad" }}>{h2hPlayerA.totalPts}</div>
+                        </div>
+                        <div style={{ fontSize:18, fontWeight:700, color:"#6b9aad" }}>VS</div>
+                        <div style={{ flex:1 }}>
+                          <div style={{ width:50, height:50, borderRadius:"50%", background:h2hPlayerB.color, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700, fontSize:16, color:"#fff", margin:"0 auto 8px" }}>{getInitials(h2hPlayerB.name)}</div>
+                          <div style={{ fontWeight:700, fontSize:15 }}>{h2hPlayerB.name}</div>
+                          <div style={{ fontSize:28, fontWeight:800, color: h2hPlayerB.totalPts >= h2hPlayerA.totalPts ? "#00d46a" : "#6b9aad" }}>{h2hPlayerB.totalPts}</div>
+                        </div>
+                      </div>
+                      <div style={{ marginTop:14, fontSize:13, color:"#6b9aad" }}>
+                        {h2hPlayerA.totalPts === h2hPlayerB.totalPts ? "Dead even — anyone's game" : `${h2hPlayerA.totalPts > h2hPlayerB.totalPts ? h2hPlayerA.name : h2hPlayerB.name} is ahead by ${Math.abs(h2hPlayerA.totalPts - h2hPlayerB.totalPts)} pts`}
+                      </div>
+                    </div>
+                    {(() => {
+                      const ptsA = h2hPlayerA.totalPts, ptsB = h2hPlayerB.totalPts;
+                      const winsA = h2hPlayerA.totalWon, winsB = h2hPlayerB.totalWon;
+                      const gdA = h2hPlayerA.totalGd, gdB = h2hPlayerB.totalGd;
+                      const teamsA = h2hPlayerA.teams.length, teamsB = h2hPlayerB.teams.length;
+                      const activeA = h2hPlayerA.teams.filter(t => (standings[t]?.played ?? 0) < 3).length;
+                      const activeB = h2hPlayerB.teams.filter(t => (standings[t]?.played ?? 0) < 3).length;
+                      const remainingA = h2hPlayerA.teams.reduce((s,t) => s + Math.max(0, 3-(standings[t]?.played??0))*3, 0);
+                      const remainingB = h2hPlayerB.teams.reduce((s,t) => s + Math.max(0, 3-(standings[t]?.played??0))*3, 0);
+                      const maxA = ptsA + remainingA, maxB = ptsB + remainingB;
+                      const scoreA = ptsA*3+winsA*2+gdA*0.5+remainingA*1.5+activeA*2;
+                      const scoreB = ptsB*3+winsB*2+gdB*0.5+remainingB*1.5+activeB*2;
+                      const total = scoreA + scoreB || 1;
+                      const oddsA = Math.round((scoreA/total)*100);
+                      const oddsB = 100-oddsA;
+                      const verdict = oddsA>65?`${h2hPlayerA.name} looks very strong`:oddsB>65?`${h2hPlayerB.name} looks very strong`:oddsA>55?`${h2hPlayerA.name} has the edge`:oddsB>55?`${h2hPlayerB.name} has the edge`:"Too close to call — could go either way";
+                      return (
+                        <div style={{ ...S.card, padding:"18px 20px", marginBottom:14 }}>
+                          <p style={{ fontSize:12, fontWeight:700, color:"#6b9aad", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:16 }}>📊 Stats & Odds</p>
+                          <div style={{ marginBottom:16 }}>
+                            <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, fontWeight:700, marginBottom:6 }}>
+                              <span style={{ color:h2hPlayerA.color }}>{h2hPlayerA.name} {oddsA}%</span>
+                              <span style={{ color:"#6b9aad", fontSize:11 }}>Win Probability</span>
+                              <span style={{ color:h2hPlayerB.color }}>{oddsB}% {h2hPlayerB.name}</span>
+                            </div>
+                            <div style={{ height:10, borderRadius:99, background:"rgba(255,255,255,0.08)", overflow:"hidden" }}>
+                              <div style={{ height:"100%", width:`${oddsA}%`, background:`linear-gradient(90deg,${h2hPlayerA.color},${h2hPlayerA.color}cc)`, borderRadius:99, transition:"width 0.6s ease" }} />
+                            </div>
+                          </div>
+                          {[["Current Points",ptsA,ptsB],["Wins",winsA,winsB],["Goal Difference",gdA,gdB],["Teams",teamsA,teamsB],["Max Possible Pts",maxA,maxB],["Teams Still Active",activeA,activeB]].map(([label,valA,valB]) => {
+                            const better = valA>valB?"A":valB>valA?"B":"even";
+                            return (
+                              <div key={label} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
+                                <div style={{ flex:1, textAlign:"right" }}><span style={{ fontWeight:700, fontSize:14, color:better==="A"?"#00d46a":better==="even"?"#e8f4f8":"#6b9aad" }}>{valA}</span></div>
+                                <div style={{ width:140, textAlign:"center", fontSize:11, color:"#6b9aad", flexShrink:0 }}>{label}</div>
+                                <div style={{ flex:1 }}><span style={{ fontWeight:700, fontSize:14, color:better==="B"?"#00d46a":better==="even"?"#e8f4f8":"#6b9aad" }}>{valB}</span></div>
+                              </div>
+                            );
+                          })}
+                          <div style={{ marginTop:14, padding:"10px 14px", background:"rgba(0,212,106,0.08)", border:"1px solid rgba(0,212,106,0.2)", borderRadius:10, fontSize:13, color:"#00d46a", textAlign:"center", fontWeight:600 }}>🔮 {verdict}</div>
+                          <div style={{ marginTop:8, fontSize:11, color:"#4a6a7a", textAlign:"center" }}>Based on current points, goal difference, wins and remaining games. Not a guarantee!</div>
+                        </div>
+                      );
+                    })()}
+                    <div style={{ ...S.card, padding:"18px 20px" }}>
+                      <p style={{ fontSize:12, fontWeight:700, color:"#6b9aad", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:14 }}>Team Comparison</p>
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+                        <div>
+                          {h2hPlayerA.teams.map(t => {
+                            const info=WC_TEAMS.find(x=>x.name===t); const ts=standings[t]||{};
+                            return <div key={t} style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8, fontSize:12 }}><span>{info?.flag}</span><span style={{ flex:1 }}>{t}</span><span style={{ fontWeight:700, color:"#00d46a" }}>{ts.pts??0}</span></div>;
+                          })}
+                        </div>
+                        <div>
+                          {h2hPlayerB.teams.map(t => {
+                            const info=WC_TEAMS.find(x=>x.name===t); const ts=standings[t]||{};
+                            return <div key={t} style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8, fontSize:12, justifyContent:"flex-end" }}><span style={{ fontWeight:700, color:"#00d46a" }}>{ts.pts??0}</span><span style={{ flex:1, textAlign:"right" }}>{t}</span><span>{info?.flag}</span></div>;
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ ...S.card, padding:"30px 24px", textAlign:"center", color:"#6b9aad", fontSize:13 }}>Pick two different people above to compare</div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
-    {/* ODDS & STATS CARD */}
-    {(() => {
-      const ptsA = h2hPlayerA.totalPts;
-      const ptsB = h2hPlayerB.totalPts;
-      const winsA = h2hPlayerA.totalWon;
-      const winsB = h2hPlayerB.totalWon;
-      const gdA = h2hPlayerA.totalGd;
-      const gdB = h2hPlayerB.totalGd;
-      const teamsA = h2hPlayerA.teams.length;
-      const teamsB = h2hPlayerB.teams.length;
-
-      // Teams still in contention (not yet eliminated — played < 3 games in group stage)
-      const activeA = h2hPlayerA.teams.filter(t => (standings[t]?.played ?? 0) < 3).length;
-      const activeB = h2hPlayerB.teams.filter(t => (standings[t]?.played ?? 0) < 3).length;
-
-      // Max possible remaining points (assume 3 pts per remaining game, rough estimate)
-      const remainingA = h2hPlayerA.teams.reduce((s,t) => {
-        const played = standings[t]?.played ?? 0;
-        const remaining = Math.max(0, 3 - played);
-        return s + remaining * 3;
-      }, 0);
-      const remainingB = h2hPlayerB.teams.reduce((s,t) => {
-        const played = standings[t]?.played ?? 0;
-        const remaining = Math.max(0, 3 - played);
-        return s + remaining * 3;
-      }, 0);
-
-      const maxA = ptsA + remainingA;
-      const maxB = ptsB + remainingB;
-
-      // Win probability — weighted score based on current pts, potential, wins, gd
-      const scoreA = (ptsA * 3) + (winsA * 2) + (gdA * 0.5) + (remainingA * 1.5) + (activeA * 2);
-      const scoreB = (ptsB * 3) + (winsB * 2) + (gdB * 0.5) + (remainingB * 1.5) + (activeB * 2);
-      const total = scoreA + scoreB || 1;
-      const oddsA = Math.round((scoreA / total) * 100);
-      const oddsB = 100 - oddsA;
-
-      const leader = ptsA > ptsB ? h2hPlayerA.name : ptsB > ptsA ? h2hPlayerB.name : null;
-      const verdict = oddsA > 65 ? `${h2hPlayerA.name} looks very strong` :
-                      oddsB > 65 ? `${h2hPlayerB.name} looks very strong` :
-                      oddsA > 55 ? `${h2hPlayerA.name} has the edge` :
-                      oddsB > 55 ? `${h2hPlayerB.name} has the edge` :
-                      "Too close to call — could go either way";
-
-      return (
-        <div style={{ ...S.card, padding:"18px 20px", marginBottom:14 }}>
-          <p style={{ fontSize:12, fontWeight:700, color:"#6b9aad", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:16 }}>📊 Stats & Odds</p>
-
-          {/* Win probability bar */}
-          <div style={{ marginBottom:16 }}>
-            <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, fontWeight:700, marginBottom:6 }}>
-              <span style={{ color:h2hPlayerA.color }}>{h2hPlayerA.name} {oddsA}%</span>
-              <span style={{ color:"#6b9aad", fontSize:11 }}>Win Probability</span>
-              <span style={{ color:h2hPlayerB.color }}>{oddsB}% {h2hPlayerB.name}</span>
+        {screen === "pulse" && (
+          <div>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18 }}>
+              <h2 style={{ fontSize:19, fontWeight:700 }}>💓 Office Pulse</h2>
+              <div style={{ fontSize:11, color:"#6b9aad" }}>Updated {lastUpdated || "—"}</div>
             </div>
-            <div style={{ height:10, borderRadius:99, background:"rgba(255,255,255,0.08)", overflow:"hidden" }}>
-              <div style={{ height:"100%", width:`${oddsA}%`, background:`linear-gradient(90deg, ${h2hPlayerA.color}, ${h2hPlayerA.color}cc)`, borderRadius:99, transition:"width 0.6s ease" }} />
-            </div>
-          </div>
-
-          {/* Stats grid */}
-          {[
-            ["Current Points", ptsA, ptsB],
-            ["Wins", winsA, winsB],
-            ["Goal Difference", gdA, gdB],
-            ["Teams", teamsA, teamsB],
-            ["Max Possible Pts", maxA, maxB],
-            ["Teams Still Active", activeA, activeB],
-          ].map(([label, valA, valB]) => {
-            const better = valA > valB ? "A" : valB > valA ? "B" : "even";
-            return (
-              <div key={label} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
-                <div style={{ flex:1, textAlign:"right" }}>
-                  <span style={{ fontWeight:700, fontSize:14, color: better==="A" ? "#00d46a" : better==="even" ? "#e8f4f8" : "#6b9aad" }}>{valA}</span>
+            <p style={{ color:"#6b9aad", fontSize:13, marginBottom:18 }}>How is everyone doing right now based on their teams' live scores?</p>
+            {enriched.length === 0 ? (
+              <div style={{ ...S.card, padding:"40px 24px", textAlign:"center" }}>
+                <div style={{ fontSize:44, marginBottom:10 }}>💓</div>
+                <div style={{ fontWeight:600 }}>No entrants yet</div>
+              </div>
+            ) : (
+              <div>
+                {enriched.map((p) => {
+                  const teamStatuses = p.teams.map(t => {
+                    const live = liveMatches.find(m => m.homeTeam?.name?.includes(t) || m.awayTeam?.name?.includes(t) || t.includes(m.homeTeam?.name) || t.includes(m.awayTeam?.name));
+                    if (!live) return null;
+                    const isHome = live.homeTeam?.name?.includes(t) || t.includes(live.homeTeam?.name);
+                    const myScore = isHome ? (live.score?.fullTime?.home??0) : (live.score?.fullTime?.away??0);
+                    const theirScore = isHome ? (live.score?.fullTime?.away??0) : (live.score?.fullTime?.home??0);
+                    return myScore > theirScore ? "winning" : myScore < theirScore ? "losing" : "drawing";
+                  }).filter(Boolean);
+                  const hasLive = teamStatuses.length > 0;
+                  const isWinning = teamStatuses.some(s=>s==="winning") && !teamStatuses.some(s=>s==="losing");
+                  const isLosing = teamStatuses.every(s=>s==="losing");
+                  const pulseColor = !hasLive?"rgba(255,255,255,0.06)":isWinning?"rgba(0,212,106,0.15)":isLosing?"rgba(239,68,68,0.15)":"rgba(245,158,11,0.15)";
+                  const borderColor = !hasLive?"rgba(255,255,255,0.08)":isWinning?"rgba(0,212,106,0.4)":isLosing?"rgba(239,68,68,0.4)":"rgba(245,158,11,0.4)";
+                  const statusEmoji = !hasLive?"😴":isWinning?"🎉":isLosing?"😬":"😰";
+                  const statusText = !hasLive?"No live team":isWinning?"WINNING":isLosing?"LOSING":"DRAWING";
+                  const statusColor = !hasLive?"#6b9aad":isWinning?"#00d46a":isLosing?"#ef4444":"#f59e0b";
+                  const liveTeams = p.teams.filter(t => liveMatches.find(m => m.homeTeam?.name?.includes(t)||m.awayTeam?.name?.includes(t)||t.includes(m.homeTeam?.name)||t.includes(m.awayTeam?.name)));
+                  return (
+                    <div key={p.id} style={{ background:pulseColor, border:`1px solid ${borderColor}`, borderRadius:14, padding:"14px 16px", marginBottom:10, transition:"all 0.3s ease" }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                        <div style={{ width:42, height:42, borderRadius:"50%", background:p.color, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700, fontSize:14, color:"#fff", flexShrink:0 }}>{getInitials(p.name)}</div>
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontWeight:700, fontSize:15 }}>{p.name}</div>
+                          {liveTeams.length > 0 ? (
+                            <div style={{ fontSize:12, color:"#6b9aad", marginTop:2 }}>
+                              {liveTeams.map(t => {
+                                const info=WC_TEAMS.find(x=>x.name===t);
+                                const live=liveMatches.find(m=>m.homeTeam?.name?.includes(t)||m.awayTeam?.name?.includes(t)||t.includes(m.homeTeam?.name)||t.includes(m.awayTeam?.name));
+                                const isHome=live?.homeTeam?.name?.includes(t)||t.includes(live?.homeTeam?.name);
+                                const myScore=isHome?(live?.score?.fullTime?.home??0):(live?.score?.fullTime?.away??0);
+                                const theirScore=isHome?(live?.score?.fullTime?.away??0):(live?.score?.fullTime?.home??0);
+                                const opp=isHome?live?.awayTeam?.shortName||live?.awayTeam?.name:live?.homeTeam?.shortName||live?.homeTeam?.name;
+                                return <span key={t} style={{ marginRight:8 }}>{info?.flag} {t} {myScore}–{theirScore} vs {opp}</span>;
+                              })}
+                            </div>
+                          ) : (
+                            <div style={{ fontSize:12, color:"#4a6a7a", marginTop:2 }}>No teams currently playing</div>
+                          )}
+                        </div>
+                        <div style={{ textAlign:"right", flexShrink:0 }}>
+                          <div style={{ fontSize:20 }}>{statusEmoji}</div>
+                          <div style={{ fontSize:10, fontWeight:700, color:statusColor, marginTop:2 }}>{statusText}</div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div style={{ marginTop:8, padding:"10px 14px", background:"rgba(255,255,255,0.03)", borderRadius:10, fontSize:11, color:"#4a6a7a", textAlign:"center" }}>
+                  🎉 Winning · 😰 Drawing · 😬 Losing · 😴 No live team · Updates every 60 seconds
                 </div>
-                <div style={{ width:140, textAlign:"center", fontSize:11, color:"#6b9aad", flexShrink:0 }}>{label}</div>
-                <div style={{ flex:1 }}>
-                  <span style={{ fontWeight:700, fontSize:14, color: better==="B" ? "#00d46a" : better==="even" ? "#e8f4f8" : "#6b9aad" }}>{valB}</span>
-                </div>
-              </div>
-            );
-          })}
-
-          {/* Verdict */}
-          <div style={{ marginTop:14, padding:"10px 14px", background:"rgba(0,212,106,0.08)", border:"1px solid rgba(0,212,106,0.2)", borderRadius:10, fontSize:13, color:"#00d46a", textAlign:"center", fontWeight:600 }}>
-            🔮 {verdict}
-          </div>
-          <div style={{ marginTop:8, fontSize:11, color:"#4a6a7a", textAlign:"center" }}>
-            Based on current points, goal difference, wins and remaining games. Not a guarantee!
-          </div>
-        </div>
-      );
-    })()}
-
-    {/* TEAM COMPARISON */}
-    <div style={{ ...S.card, padding:"18px 20px" }}>
-      <p style={{ fontSize:12, fontWeight:700, color:"#6b9aad", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:14 }}>Team Comparison</p>
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
-        <div>
-          {h2hPlayerA.teams.map(t => {
-            const info = WC_TEAMS.find(x => x.name===t);
-            const ts = standings[t] || {};
-            return (
-              <div key={t} style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8, fontSize:12 }}>
-                <span>{info?.flag}</span>
-                <span style={{ flex:1 }}>{t}</span>
-                <span style={{ fontWeight:700, color:"#00d46a" }}>{ts.pts ?? 0}</span>
-              </div>
-            );
-          })}
-        </div>
-        <div>
-          {h2hPlayerB.teams.map(t => {
-            const info = WC_TEAMS.find(x => x.name===t);
-            const ts = standings[t] || {};
-            return (
-              <div key={t} style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8, fontSize:12, justifyContent:"flex-end" }}>
-                <span style={{ fontWeight:700, color:"#00d46a" }}>{ts.pts ?? 0}</span>
-                <span style={{ flex:1, textAlign:"right" }}>{t}</span>
-                <span>{info?.flag}</span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  </div>
-) : (
-  <div style={{ ...S.card, padding:"30px 24px", textAlign:"center", color:"#6b9aad", fontSize:13 }}>
-    Pick two different people above to compare
-  </div>
-)}
               </div>
             )}
           </div>
@@ -1125,13 +1131,7 @@ export default function App() {
                         {p.teams.map(t => { const info=WC_TEAMS.find(x=>x.name===t); return <span key={t} className="ch">{info?.flag} {t}</span>; })}
                       </div>
                     </div>
-                    <button onClick={() => {
-                      setNewName(p.name);
-                      setSelectedTeams([...p.teams]);
-                      setEditingId(p.id);
-                    }} style={{ background:"rgba(0,212,106,0.12)", border:"1px solid rgba(0,212,106,0.3)", color:"#00d46a", padding:"5px 10px", borderRadius:8, cursor:"pointer", fontSize:12, fontWeight:600, flexShrink:0 }}>
-                      ✏️ Edit
-                    </button>
+                    <button onClick={() => { setNewName(p.name); setSelectedTeams([...p.teams]); setEditingId(p.id); }} style={{ background:"rgba(0,212,106,0.12)", border:"1px solid rgba(0,212,106,0.3)", color:"#00d46a", padding:"5px 10px", borderRadius:8, cursor:"pointer", fontSize:12, fontWeight:600, flexShrink:0 }}>✏️ Edit</button>
                   </div>
                 ))}
               </div>
