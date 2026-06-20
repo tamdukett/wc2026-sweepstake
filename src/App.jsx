@@ -79,6 +79,20 @@ const ROASTS = [
   "Plot twist nobody asked for.",
 ];
 
+const DEFAULT_SETTINGS = {
+  showHeadToHead: true,
+  showPulse: true,
+  showBracket: true,
+  showGroups: true,
+  showFixtures: true,
+  showJoin: true,
+  allowJoining: true,
+  showRoasts: true,
+  showBadges: true,
+  homeMessage: "",
+  customRoasts: "",
+};
+
 const getInitials = n => n.split(" ").map(w => w[0]).join("").toUpperCase().slice(0,2);
 const fc = r => r === "W" ? "#00d46a" : r === "D" ? "#f59e0b" : "#ef4444";
 
@@ -114,18 +128,7 @@ export default function App() {
   const [h2hA, setH2hA] = useState(null);
   const [h2hB, setH2hB] = useState(null);
   const [previousEnriched, setPreviousEnriched] = useState([]);
-  const [adminSettings, setAdminSettings] = useState({
-    showHeadToHead: true,
-    showPulse: true,
-    showBracket: true,
-    showGroups: true,
-    showFixtures: true,
-    showJoin: true,
-    allowJoining: true,
-    showRoasts: true,
-    showBadges: true,
-    homeMessage: "",
-  });
+  const [adminSettings, setAdminSettings] = useState(DEFAULT_SETTINGS);
   const liveTimer = useRef(null);
 
   const loadParticipants = useCallback(async () => {
@@ -141,14 +144,40 @@ export default function App() {
     }
   }, []);
 
+  const loadSettings = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("app_settings")
+      .select("settings")
+      .eq("id", "singleton")
+      .single();
+    if (!error && data?.settings && Object.keys(data.settings).length > 0) {
+      setAdminSettings(prev => ({ ...prev, ...data.settings }));
+    }
+  }, []);
+
+  const saveSettings = async (newSettings) => {
+    await supabase
+      .from("app_settings")
+      .upsert({ id: "singleton", settings: newSettings, updated_at: new Date().toISOString() });
+  };
+
+  const updateSetting = (key, value) => {
+    setAdminSettings(prev => {
+      const next = { ...prev, [key]: value };
+      saveSettings(next);
+      return next;
+    });
+  };
+
   useEffect(() => {
     loadParticipants();
+    loadSettings();
     const channel = supabase
       .channel("participants-changes")
       .on("postgres_changes", { event: "*", schema: "public", table: "participants" }, () => loadParticipants())
       .subscribe();
     return () => supabase.removeChannel(channel);
-  }, [loadParticipants]);
+  }, [loadParticipants, loadSettings]);
 
   const fetchFromAPI = useCallback(async (path) => {
     const res = await fetch(`/api/football?path=${encodeURIComponent(path)}`);
@@ -220,7 +249,7 @@ export default function App() {
       const { error } = await supabase.from("participants").update({ teams: JSON.stringify(selectedTeams) }).eq("id", editingId);
       if (error) { showToast("Error saving — try again", "error"); return; }
       setEditingId(null); setNewName(""); setSelectedTeams([]);
-      showToast(`Teams updated! 🎉`); setScreen("leaderboard"); return;
+      showToast("Teams updated! 🎉"); setScreen("leaderboard"); return;
     }
     if (participants.find(p => p.name.toLowerCase() === newName.trim().toLowerCase())) {
       showToast("Name already taken!", "error"); return;
@@ -281,7 +310,14 @@ export default function App() {
     return { emoji:`#${i+1}`, color:"#6b7280" };
   };
 
-  const getRoast = seed => ROASTS[seed % ROASTS.length];
+  const getRoast = seed => {
+  const custom = adminSettings.customRoasts
+    .split("\n")
+    .map(r => r.trim())
+    .filter(Boolean);
+  const pool = custom.length > 0 ? custom : ROASTS;
+  return pool[seed % pool.length];
+};
 
   const matchStatusLabel = m => {
     if (m.status === "IN_PLAY") return `🔴 ${m.minute ? `${m.minute}' ` : ""}LIVE`;
@@ -315,9 +351,11 @@ export default function App() {
     const winH = Math.round((scoreH/total)*100);
     const winA = Math.round((scoreA/total)*100);
     const draw = 100-winH-winA;
-    const hShort = m.homeTeam?.shortName||m.homeTeam?.name?.split(" ")[0]||"Home";
-    const aShort = m.awayTeam?.shortName||m.awayTeam?.name?.split(" ")[0]||"Away";
-    return { winH, winA, draw, hShort, aShort };
+    return {
+      winH, winA, draw,
+      hShort: m.homeTeam?.shortName||m.homeTeam?.name?.split(" ")[0]||"Home",
+      aShort: m.awayTeam?.shortName||m.awayTeam?.name?.split(" ")[0]||"Away",
+    };
   };
 
   const visibleTeams = WC_TEAMS.filter(t => {
@@ -345,7 +383,7 @@ export default function App() {
     btn: { background:"linear-gradient(135deg,#00d46a,#00b359)", color:"#0a1628", border:"none", borderRadius:12, padding:"14px 28px", fontSize:15, fontWeight:700, cursor:"pointer", width:"100%" },
     inp: { background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.15)", color:"#e8f4f8", borderRadius:10, padding:"11px 14px", fontSize:14, width:"100%", boxSizing:"border-box", outline:"none" },
     lbl: { display:"block", marginBottom:8, fontSize:13, fontWeight:600, color:"#6b9aad" },
-    sectionTitle: { fontSize:12, fontWeight:700, color:"#6b9aad", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:14 },
+    sec: { fontSize:12, fontWeight:700, color:"#6b9aad", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:14 },
   };
 
   const h2hPlayerA = enriched.find(p => p.id === h2hA);
@@ -361,6 +399,26 @@ export default function App() {
     ["knockout","🏆 Bracket", adminSettings.showBracket],
     ["register","➕ Join", adminSettings.showJoin && adminSettings.allowJoining],
   ];
+
+  const ProbBar = ({ m }) => {
+    const prob = getProbBar(m);
+    if (!prob) return null;
+    return (
+      <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid rgba(255,255,255,0.06)" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"#6b9aad", marginBottom:5, fontWeight:600 }}>
+          <span>{prob.hShort} {prob.winH}%</span>
+          <span style={{ color:"#4a6a7a" }}>Draw {prob.draw}%</span>
+          <span>{prob.winA}% {prob.aShort}</span>
+        </div>
+        <div style={{ height:5, borderRadius:99, background:"rgba(255,255,255,0.06)", overflow:"hidden", display:"flex" }}>
+          <div style={{ width:`${prob.winH}%`, background:"#00d46a", borderRadius:"99px 0 0 99px" }} />
+          <div style={{ width:`${prob.draw}%`, background:"rgba(255,255,255,0.15)" }} />
+          <div style={{ width:`${prob.winA}%`, background:"#3a86ff", borderRadius:"0 99px 99px 0" }} />
+        </div>
+        <div style={{ fontSize:9, color:"#3a5a6a", marginTop:4, textAlign:"center" }}>Based on current group stage stats · Not a guarantee</div>
+      </div>
+    );
+  };
 
   return (
     <div style={S.app}>
@@ -383,7 +441,7 @@ export default function App() {
         .match-card.live { border-color:rgba(239,68,68,0.4); background:rgba(239,68,68,0.05); }
         .ko-match { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:10px 12px; min-width:180px; }
         input::placeholder { color:#4a6a7a; }
-        .toggle-row { display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.05); }
+        .trow { display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.05); }
       `}</style>
 
       <div style={{ position:"fixed", inset:0, pointerEvents:"none", zIndex:0, overflow:"hidden" }}>
@@ -415,7 +473,7 @@ export default function App() {
             <div key={i} style={{
               position:"absolute", left:`${Math.random()*100}%`, top:"-10px", width:8, height:8,
               background:["#00d46a","#ffd700","#ef4444","#3a86ff","#ff006e"][i%5],
-              borderRadius: i%2===0?"50%":"2px",
+              borderRadius:i%2===0?"50%":"2px",
               animation:`fall ${2+Math.random()*2}s linear forwards`,
               animationDelay:`${Math.random()*0.5}s`,
             }} />
@@ -482,14 +540,14 @@ export default function App() {
               )}
               <button style={S.btn} onClick={()=>setScreen("register")}>Join the Sweepstake →</button>
               {(() => {
-                const totalMatches = 104;
+                const total = 104;
                 const played = fixtures.filter(m=>m.status==="FINISHED").length;
-                const pct = Math.round((played/totalMatches)*100);
+                const pct = Math.round((played/total)*100);
                 return (
                   <div style={{ marginTop:18 }}>
                     <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, color:"#6b9aad", marginBottom:6 }}>
                       <span style={{ fontWeight:600 }}>🏆 Tournament Progress</span>
-                      <span>{played} of {totalMatches} matches played</span>
+                      <span>{played} of {total} matches played</span>
                     </div>
                     <div style={{ height:8, borderRadius:99, background:"rgba(255,255,255,0.08)", overflow:"hidden" }}>
                       <div style={{ height:"100%", width:`${pct}%`, background:"linear-gradient(90deg,#00d46a,#00b359)", borderRadius:99, transition:"width 0.6s ease" }} />
@@ -504,7 +562,7 @@ export default function App() {
               if (enriched.length < 2 || previousEnriched.length === 0) return null;
               const movers = enriched.map(p => {
                 const prev = previousEnriched.find(x=>x.id===p.id);
-                return { ...p, gained: prev ? p.totalPts - prev.totalPts : 0 };
+                return { ...p, gained: prev ? p.totalPts-prev.totalPts : 0 };
               }).filter(p=>p.gained>0).sort((a,b)=>b.gained-a.gained);
               const biggest = movers[0];
               if (!biggest) return null;
@@ -535,7 +593,6 @@ export default function App() {
                   const banner = getOwnerBanner(homeOwners, awayOwners);
                   const scorers = (m.goals||[]).filter(g=>g.type==="REGULAR"||!g.type);
                   const kickoff = new Date(m.utcDate).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
-                  const prob = getProbBar(m);
                   return (
                     <div key={m.id} className="match-card live" style={banner?{borderColor:"rgba(0,212,106,0.4)",background:"rgba(0,212,106,0.05)"}:{}}>
                       {banner && <div style={{ fontSize:11, fontWeight:700, color:"#00d46a", marginBottom:8 }}>⭐ {banner}</div>}
@@ -561,19 +618,7 @@ export default function App() {
                           ⚽ {scorers.map((g,gi)=><span key={gi}>{g.scorer?.name||"Unknown"} {g.minute}'{gi<scorers.length-1?" · ":""}</span>)}
                         </div>
                       )}
-                      {prob && (
-                        <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid rgba(255,255,255,0.06)" }}>
-                          <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"#6b9aad", marginBottom:5, fontWeight:600 }}>
-                            <span>{prob.hShort} {prob.winH}%</span><span style={{ color:"#4a6a7a" }}>Draw {prob.draw}%</span><span>{prob.winA}% {prob.aShort}</span>
-                          </div>
-                          <div style={{ height:5, borderRadius:99, background:"rgba(255,255,255,0.06)", overflow:"hidden", display:"flex" }}>
-                            <div style={{ width:`${prob.winH}%`, background:"#00d46a", borderRadius:"99px 0 0 99px" }} />
-                            <div style={{ width:`${prob.draw}%`, background:"rgba(255,255,255,0.15)" }} />
-                            <div style={{ width:`${prob.winA}%`, background:"#3a86ff", borderRadius:"0 99px 99px 0" }} />
-                          </div>
-                          <div style={{ fontSize:9, color:"#3a5a6a", marginTop:4, textAlign:"center" }}>Based on current group stage stats · Not a guarantee</div>
-                        </div>
-                      )}
+                      <ProbBar m={m} />
                     </div>
                   );
                 })}
@@ -622,7 +667,6 @@ export default function App() {
               const banner = getOwnerBanner(homeOwners, awayOwners);
               const scorers = (m.goals||[]).filter(g=>g.type==="REGULAR"||!g.type);
               const kickoff = new Date(m.utcDate).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
-              const prob = getProbBar(m);
               return (
                 <div key={m.id} className={`match-card ${isLive?"live":""}`} style={banner&&!isLive?{borderColor:"rgba(0,212,106,0.4)",background:"rgba(0,212,106,0.05)"}:{}}>
                   {banner && <div style={{ fontSize:11, fontWeight:700, color:"#00d46a", marginBottom:8 }}>⭐ {banner}</div>}
@@ -666,19 +710,7 @@ export default function App() {
                       ⚽ {scorers.map((g,gi)=><span key={gi}>{g.scorer?.name||"Unknown"} {g.minute}'{gi<scorers.length-1?" · ":""}</span>)}
                     </div>
                   )}
-                  {prob && (
-                    <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid rgba(255,255,255,0.06)" }}>
-                      <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"#6b9aad", marginBottom:5, fontWeight:600 }}>
-                        <span>{prob.hShort} {prob.winH}%</span><span style={{ color:"#4a6a7a" }}>Draw {prob.draw}%</span><span>{prob.winA}% {prob.aShort}</span>
-                      </div>
-                      <div style={{ height:5, borderRadius:99, background:"rgba(255,255,255,0.06)", overflow:"hidden", display:"flex" }}>
-                        <div style={{ width:`${prob.winH}%`, background:"#00d46a", borderRadius:"99px 0 0 99px" }} />
-                        <div style={{ width:`${prob.draw}%`, background:"rgba(255,255,255,0.15)" }} />
-                        <div style={{ width:`${prob.winA}%`, background:"#3a86ff", borderRadius:"0 99px 99px 0" }} />
-                      </div>
-                      <div style={{ fontSize:9, color:"#3a5a6a", marginTop:4, textAlign:"center" }}>Based on current group stage stats · Not a guarantee</div>
-                    </div>
-                  )}
+                  <ProbBar m={m} />
                 </div>
               );
             })}
@@ -818,40 +850,40 @@ export default function App() {
                       </div>
                     </div>
                     {(()=>{
-                      const ptsA=h2hPlayerA.totalPts, ptsB=h2hPlayerB.totalPts;
-                      const winsA=h2hPlayerA.totalWon, winsB=h2hPlayerB.totalWon;
-                      const gdA=h2hPlayerA.totalGd, gdB=h2hPlayerB.totalGd;
-                      const teamsA=h2hPlayerA.teams.length, teamsB=h2hPlayerB.teams.length;
-                      const activeA=h2hPlayerA.teams.filter(t=>(standings[t]?.played??0)<3).length;
-                      const activeB=h2hPlayerB.teams.filter(t=>(standings[t]?.played??0)<3).length;
+                      const pA=h2hPlayerA.totalPts, pB=h2hPlayerB.totalPts;
+                      const wA=h2hPlayerA.totalWon, wB=h2hPlayerB.totalWon;
+                      const gA=h2hPlayerA.totalGd, gB=h2hPlayerB.totalGd;
+                      const tA=h2hPlayerA.teams.length, tB=h2hPlayerB.teams.length;
+                      const acA=h2hPlayerA.teams.filter(t=>(standings[t]?.played??0)<3).length;
+                      const acB=h2hPlayerB.teams.filter(t=>(standings[t]?.played??0)<3).length;
                       const remA=h2hPlayerA.teams.reduce((s,t)=>s+Math.max(0,3-(standings[t]?.played??0))*3,0);
                       const remB=h2hPlayerB.teams.reduce((s,t)=>s+Math.max(0,3-(standings[t]?.played??0))*3,0);
-                      const maxA=ptsA+remA, maxB=ptsB+remB;
-                      const sA=ptsA*3+winsA*2+gdA*0.5+remA*1.5+activeA*2;
-                      const sB=ptsB*3+winsB*2+gdB*0.5+remB*1.5+activeB*2;
+                      const maxA=pA+remA, maxB=pB+remB;
+                      const sA=pA*3+wA*2+gA*0.5+remA*1.5+acA*2;
+                      const sB=pB*3+wB*2+gB*0.5+remB*1.5+acB*2;
                       const tot=sA+sB||1;
-                      const oddsA=Math.round((sA/tot)*100), oddsB=100-oddsA;
-                      const verdict=oddsA>65?`${h2hPlayerA.name} looks very strong`:oddsB>65?`${h2hPlayerB.name} looks very strong`:oddsA>55?`${h2hPlayerA.name} has the edge`:oddsB>55?`${h2hPlayerB.name} has the edge`:"Too close to call";
+                      const odA=Math.round((sA/tot)*100), odB=100-odA;
+                      const verdict=odA>65?`${h2hPlayerA.name} looks very strong`:odB>65?`${h2hPlayerB.name} looks very strong`:odA>55?`${h2hPlayerA.name} has the edge`:odB>55?`${h2hPlayerB.name} has the edge`:"Too close to call";
                       return (
                         <div style={{ ...S.card, padding:"18px 20px", marginBottom:14 }}>
-                          <p style={{ ...S.sectionTitle }}>📊 Stats & Odds</p>
+                          <p style={{ ...S.sec }}>📊 Stats & Odds</p>
                           <div style={{ marginBottom:16 }}>
                             <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, fontWeight:700, marginBottom:6 }}>
-                              <span style={{ color:h2hPlayerA.color }}>{h2hPlayerA.name} {oddsA}%</span>
+                              <span style={{ color:h2hPlayerA.color }}>{h2hPlayerA.name} {odA}%</span>
                               <span style={{ color:"#6b9aad", fontSize:11 }}>Win Probability</span>
-                              <span style={{ color:h2hPlayerB.color }}>{oddsB}% {h2hPlayerB.name}</span>
+                              <span style={{ color:h2hPlayerB.color }}>{odB}% {h2hPlayerB.name}</span>
                             </div>
                             <div style={{ height:10, borderRadius:99, background:"rgba(255,255,255,0.08)", overflow:"hidden" }}>
-                              <div style={{ height:"100%", width:`${oddsA}%`, background:`linear-gradient(90deg,${h2hPlayerA.color},${h2hPlayerA.color}cc)`, borderRadius:99, transition:"width 0.6s ease" }} />
+                              <div style={{ height:"100%", width:`${odA}%`, background:`linear-gradient(90deg,${h2hPlayerA.color},${h2hPlayerA.color}cc)`, borderRadius:99, transition:"width 0.6s ease" }} />
                             </div>
                           </div>
-                          {[["Current Points",ptsA,ptsB],["Wins",winsA,winsB],["Goal Difference",gdA,gdB],["Teams",teamsA,teamsB],["Max Possible Pts",maxA,maxB],["Teams Still Active",activeA,activeB]].map(([label,valA,valB])=>{
-                            const better=valA>valB?"A":valB>valA?"B":"even";
+                          {[["Current Points",pA,pB],["Wins",wA,wB],["Goal Difference",gA,gB],["Teams",tA,tB],["Max Possible Pts",maxA,maxB],["Teams Still Active",acA,acB]].map(([label,vA,vB])=>{
+                            const better=vA>vB?"A":vB>vA?"B":"even";
                             return (
                               <div key={label} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
-                                <div style={{ flex:1, textAlign:"right" }}><span style={{ fontWeight:700, fontSize:14, color:better==="A"?"#00d46a":better==="even"?"#e8f4f8":"#6b9aad" }}>{valA}</span></div>
+                                <div style={{ flex:1, textAlign:"right" }}><span style={{ fontWeight:700, fontSize:14, color:better==="A"?"#00d46a":better==="even"?"#e8f4f8":"#6b9aad" }}>{vA}</span></div>
                                 <div style={{ width:140, textAlign:"center", fontSize:11, color:"#6b9aad", flexShrink:0 }}>{label}</div>
-                                <div style={{ flex:1 }}><span style={{ fontWeight:700, fontSize:14, color:better==="B"?"#00d46a":better==="even"?"#e8f4f8":"#6b9aad" }}>{valB}</span></div>
+                                <div style={{ flex:1 }}><span style={{ fontWeight:700, fontSize:14, color:better==="B"?"#00d46a":better==="even"?"#e8f4f8":"#6b9aad" }}>{vB}</span></div>
                               </div>
                             );
                           })}
@@ -861,7 +893,7 @@ export default function App() {
                       );
                     })()}
                     <div style={{ ...S.card, padding:"18px 20px" }}>
-                      <p style={{ ...S.sectionTitle }}>Team Comparison</p>
+                      <p style={{ ...S.sec }}>Team Comparison</p>
                       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
                         <div>
                           {h2hPlayerA.teams.map(t=>{ const info=WC_TEAMS.find(x=>x.name===t); const ts=standings[t]||{};
@@ -897,23 +929,23 @@ export default function App() {
             ) : (
               <div>
                 {enriched.map(p => {
-                  const teamStatuses = p.teams.map(t => {
-                    const live = liveMatches.find(m=>m.homeTeam?.name?.includes(t)||m.awayTeam?.name?.includes(t)||t.includes(m.homeTeam?.name)||t.includes(m.awayTeam?.name));
+                  const teamStatuses = p.teams.map(t=>{
+                    const live=liveMatches.find(m=>m.homeTeam?.name?.includes(t)||m.awayTeam?.name?.includes(t)||t.includes(m.homeTeam?.name)||t.includes(m.awayTeam?.name));
                     if (!live) return null;
-                    const isHome = live.homeTeam?.name?.includes(t)||t.includes(live.homeTeam?.name);
-                    const myScore = isHome?(live.score?.fullTime?.home??0):(live.score?.fullTime?.away??0);
-                    const theirScore = isHome?(live.score?.fullTime?.away??0):(live.score?.fullTime?.home??0);
+                    const isHome=live.homeTeam?.name?.includes(t)||t.includes(live.homeTeam?.name);
+                    const myScore=isHome?(live.score?.fullTime?.home??0):(live.score?.fullTime?.away??0);
+                    const theirScore=isHome?(live.score?.fullTime?.away??0):(live.score?.fullTime?.home??0);
                     return myScore>theirScore?"winning":myScore<theirScore?"losing":"drawing";
                   }).filter(Boolean);
-                  const hasLive = teamStatuses.length>0;
-                  const isWinning = teamStatuses.some(s=>s==="winning")&&!teamStatuses.some(s=>s==="losing");
-                  const isLosing = teamStatuses.every(s=>s==="losing");
-                  const pulseColor = !hasLive?"rgba(255,255,255,0.06)":isWinning?"rgba(0,212,106,0.15)":isLosing?"rgba(239,68,68,0.15)":"rgba(245,158,11,0.15)";
-                  const borderColor = !hasLive?"rgba(255,255,255,0.08)":isWinning?"rgba(0,212,106,0.4)":isLosing?"rgba(239,68,68,0.4)":"rgba(245,158,11,0.4)";
-                  const statusEmoji = !hasLive?"😴":isWinning?"🎉":isLosing?"😬":"😰";
-                  const statusText = !hasLive?"No live team":isWinning?"WINNING":isLosing?"LOSING":"DRAWING";
-                  const statusColor = !hasLive?"#6b9aad":isWinning?"#00d46a":isLosing?"#ef4444":"#f59e0b";
-                  const liveTeams = p.teams.filter(t=>liveMatches.find(m=>m.homeTeam?.name?.includes(t)||m.awayTeam?.name?.includes(t)||t.includes(m.homeTeam?.name)||t.includes(m.awayTeam?.name)));
+                  const hasLive=teamStatuses.length>0;
+                  const isWinning=teamStatuses.some(s=>s==="winning")&&!teamStatuses.some(s=>s==="losing");
+                  const isLosing=teamStatuses.every(s=>s==="losing");
+                  const pulseColor=!hasLive?"rgba(255,255,255,0.06)":isWinning?"rgba(0,212,106,0.15)":isLosing?"rgba(239,68,68,0.15)":"rgba(245,158,11,0.15)";
+                  const borderColor=!hasLive?"rgba(255,255,255,0.08)":isWinning?"rgba(0,212,106,0.4)":isLosing?"rgba(239,68,68,0.4)":"rgba(245,158,11,0.4)";
+                  const statusEmoji=!hasLive?"😴":isWinning?"🎉":isLosing?"😬":"😰";
+                  const statusText=!hasLive?"No live team":isWinning?"WINNING":isLosing?"LOSING":"DRAWING";
+                  const statusColor=!hasLive?"#6b9aad":isWinning?"#00d46a":isLosing?"#ef4444":"#f59e0b";
+                  const liveTeams=p.teams.filter(t=>liveMatches.find(m=>m.homeTeam?.name?.includes(t)||m.awayTeam?.name?.includes(t)||t.includes(m.homeTeam?.name)||t.includes(m.awayTeam?.name)));
                   return (
                     <div key={p.id} style={{ background:pulseColor, border:`1px solid ${borderColor}`, borderRadius:14, padding:"14px 16px", marginBottom:10 }}>
                       <div style={{ display:"flex", alignItems:"center", gap:12 }}>
@@ -956,8 +988,8 @@ export default function App() {
               <h2 style={{ fontSize:19, fontWeight:700 }}>Group Standings</h2>
               <button className="nb" style={{ fontSize:12, padding:"7px 12px" }} onClick={fetchAll}>🔄 Refresh</button>
             </div>
-            {["A","B","C","D","E","F","G","H","I","J","K","L"].map(group => {
-              const groupTeams = WC_TEAMS.filter(t=>t.group===group).map(t=>({
+            {["A","B","C","D","E","F","G","H","I","J","K","L"].map(group=>{
+              const groupTeams=WC_TEAMS.filter(t=>t.group===group).map(t=>({
                 ...t,...(standings[t.name]||{played:0,won:0,drawn:0,lost:0,gf:0,ga:0,gd:0,pts:0})
               })).sort((a,b)=>b.pts-a.pts||b.gd-a.gd||b.gf-a.gf);
               return (
@@ -972,12 +1004,12 @@ export default function App() {
                     </thead>
                     <tbody>
                       {groupTeams.map((t,ti)=>{
-                        const owners = participants.filter(p=>p.teams.includes(t.name));
+                        const owners=participants.filter(p=>p.teams.includes(t.name));
                         return (
                           <tr key={t.name} style={{ borderTop:"1px solid rgba(255,255,255,0.05)", background:owners.length?"rgba(0,212,106,0.05)":"transparent" }}>
                             <td style={{ padding:"7px 0" }}>
                               <div style={{ display:"flex", alignItems:"center", gap:5 }}>
-                                {ti<2 && <span style={{ width:3, height:16, background:"#00d46a", borderRadius:2, display:"inline-block", flexShrink:0 }} />}
+                                {ti<2&&<span style={{ width:3, height:16, background:"#00d46a", borderRadius:2, display:"inline-block", flexShrink:0 }} />}
                                 <span>{t.flag}</span>
                                 <span style={{ fontWeight:owners.length?700:400 }}>{t.name}</span>
                                 {owners.map(o=><span key={o.id} style={{ background:o.color, color:"#fff", fontSize:9, fontWeight:700, padding:"1px 5px", borderRadius:99 }}>{getInitials(o.name)}</span>)}
@@ -1010,7 +1042,7 @@ export default function App() {
                 <div style={{ color:"#6b9aad", fontSize:14 }}>The bracket will appear once the group stage is complete</div>
               </div>
             ) : knockoutRounds.map(({key,label})=>{
-              const roundMatches = knockoutMatches.filter(m=>m.stage===key);
+              const roundMatches=knockoutMatches.filter(m=>m.stage===key);
               if (!roundMatches.length) return null;
               return (
                 <div key={key} style={{ marginBottom:24 }}>
@@ -1024,7 +1056,7 @@ export default function App() {
                       return (
                         <div key={m.id} className="ko-match" style={{ border:isLive?"1px solid rgba(239,68,68,0.4)":"1px solid rgba(255,255,255,0.08)" }}>
                           <div style={{ fontSize:10, color:isLive?"#ef4444":"#6b9aad", fontWeight:700, marginBottom:8 }}>
-                            {isLive && <span className="live-pulse" style={{ marginRight:4 }} />}
+                            {isLive&&<span className="live-pulse" style={{ marginRight:4 }} />}
                             {matchStatusLabel(m)}
                           </div>
                           {[{team:m.homeTeam,score:m.score?.fullTime?.home,owners:homeOwners},{team:m.awayTeam,score:m.score?.fullTime?.away,owners:awayOwners}].map((side,si)=>(
@@ -1036,7 +1068,7 @@ export default function App() {
                                   {side.owners.map(o=><span key={o.id} style={{ background:o.color, color:"#fff", fontSize:8, fontWeight:700, padding:"1px 4px", borderRadius:99 }}>{getInitials(o.name)}</span>)}
                                 </div>
                               </div>
-                              {(isLive||isDone) && <span style={{ fontWeight:800, color:"#00d46a", fontSize:16, flexShrink:0 }}>{side.score??0}</span>}
+                              {(isLive||isDone)&&<span style={{ fontWeight:800, color:"#00d46a", fontSize:16, flexShrink:0 }}>{side.score??0}</span>}
                             </div>
                           ))}
                         </div>
@@ -1061,9 +1093,9 @@ export default function App() {
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
                 <label style={{ ...S.lbl, marginBottom:0 }}>
                   Pick Your Teams
-                  {selectedTeams.length>0 && <span style={{ marginLeft:8, background:"#00d46a", color:"#0a1628", borderRadius:99, padding:"2px 8px", fontSize:12, fontWeight:700 }}>{selectedTeams.length} selected</span>}
+                  {selectedTeams.length>0&&<span style={{ marginLeft:8, background:"#00d46a", color:"#0a1628", borderRadius:99, padding:"2px 8px", fontSize:12, fontWeight:700 }}>{selectedTeams.length} selected</span>}
                 </label>
-                {selectedTeams.length>0 && <button onClick={()=>setSelectedTeams([])} style={{ background:"none", border:"none", color:"#ef4444", cursor:"pointer", fontSize:12, fontWeight:600 }}>Clear all</button>}
+                {selectedTeams.length>0&&<button onClick={()=>setSelectedTeams([])} style={{ background:"none", border:"none", color:"#ef4444", cursor:"pointer", fontSize:12, fontWeight:600 }}>Clear all</button>}
               </div>
               <div style={{ marginBottom:10 }}>
                 <input style={S.inp} type="text" placeholder="🔍 Search teams..." value={teamSearch} onChange={e=>setTeamSearch(e.target.value)} />
@@ -1072,7 +1104,7 @@ export default function App() {
                 {groups.map(g=><button key={g} className={`gp ${groupFilter===g?"on":""}`} onClick={()=>setGroupFilter(g)}>{g==="ALL"?"All":`Grp ${g}`}</button>)}
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, maxHeight:320, overflowY:"auto" }}>
-                {visibleTeams.length===0 && <div style={{ gridColumn:"1/-1", textAlign:"center", color:"#6b9aad", padding:"24px 0", fontSize:13 }}>No teams match</div>}
+                {visibleTeams.length===0&&<div style={{ gridColumn:"1/-1", textAlign:"center", color:"#6b9aad", padding:"24px 0", fontSize:13 }}>No teams match</div>}
                 {visibleTeams.map(t=>{
                   const isTaken=takenTeams.includes(t.name)&&!selectedTeams.includes(t.name);
                   const isSelected=selectedTeams.includes(t.name);
@@ -1083,13 +1115,13 @@ export default function App() {
                         <div style={{ fontSize:13, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.name}</div>
                         <div style={{ fontSize:11, color:"#6b9aad" }}>Group {t.group}</div>
                       </div>
-                      {isSelected && <span style={{ color:"#00d46a", fontSize:16, flexShrink:0 }}>✓</span>}
+                      {isSelected&&<span style={{ color:"#00d46a", fontSize:16, flexShrink:0 }}>✓</span>}
                     </div>
                   );
                 })}
               </div>
             </div>
-            {selectedTeams.length>0 && (
+            {selectedTeams.length>0&&(
               <div style={{ background:"rgba(0,212,106,0.08)", border:"1px solid rgba(0,212,106,0.25)", borderRadius:12, padding:"12px 14px", marginBottom:18 }}>
                 <div style={{ fontSize:12, fontWeight:700, color:"#00d46a", marginBottom:8 }}>YOUR TEAMS ({selectedTeams.length})</div>
                 <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
@@ -1100,7 +1132,7 @@ export default function App() {
             <button style={{ ...S.btn, opacity:(!newName.trim()||!selectedTeams.length)?0.4:1 }} onClick={handleRegister} disabled={!newName.trim()||!selectedTeams.length}>
               {editingId?`✏️ Update My Teams (${selectedTeams.length})`:`🎉 Claim My ${selectedTeams.length>1?`${selectedTeams.length} Teams`:selectedTeams.length===1?"Team":"Teams"}`}
             </button>
-            {participants.length>0 && (
+            {participants.length>0&&(
               <div style={{ marginTop:24, paddingTop:20, borderTop:"1px solid rgba(255,255,255,0.08)" }}>
                 <p style={{ fontSize:12, fontWeight:700, color:"#6b9aad", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:12 }}>Already Joined</p>
                 {participants.map(p=>(
@@ -1132,9 +1164,7 @@ export default function App() {
               </div>
             ) : (
               <div>
-
-                {/* TAB VISIBILITY */}
-                <p style={{ ...S.sectionTitle }}>👁 Tab Visibility</p>
+                <p style={{ ...S.sec }}>👁 Tab Visibility</p>
                 {[
                   ["showHeadToHead","⚔️ Head-to-Head","Show or hide the H2H comparison tab"],
                   ["showPulse","💓 Office Pulse","Show or hide the live pulse dashboard"],
@@ -1143,45 +1173,53 @@ export default function App() {
                   ["showBracket","🏆 Bracket","Show or hide the knockout bracket tab"],
                   ["showJoin","➕ Join Tab","Show or hide the join button in nav"],
                 ].map(([key,label,desc])=>(
-                  <div key={key} className="toggle-row">
+                  <div key={key} className="trow">
                     <div>
                       <div style={{ fontSize:14, fontWeight:600 }}>{label}</div>
                       <div style={{ fontSize:11, color:"#6b9aad", marginTop:2 }}>{desc}</div>
                     </div>
-                    <Toggle value={adminSettings[key]} onChange={()=>setAdminSettings(s=>({...s,[key]:!s[key]}))} />
+                    <Toggle value={adminSettings[key]} onChange={()=>updateSetting(key,!adminSettings[key])} />
                   </div>
                 ))}
 
-                {/* SWEEPSTAKE CONTROLS */}
-                <p style={{ ...S.sectionTitle, marginTop:24 }}>🎛 Sweepstake Controls</p>
+                <p style={{ ...S.sec, marginTop:24 }}>🎛 Sweepstake Controls</p>
                 {[
                   ["allowJoining","Allow New Joiners","When off, the Join tab is hidden for everyone"],
                   ["showBadges","🔥💀 Leader & Last Badges","Fire emoji for 1st, skull for last place"],
                   ["showRoasts","💬 Last Place Roasts","Banter for whoever's bottom of the leaderboard"],
                 ].map(([key,label,desc])=>(
-                  <div key={key} className="toggle-row">
+                  <div key={key} className="trow">
                     <div>
                       <div style={{ fontSize:14, fontWeight:600 }}>{label}</div>
                       <div style={{ fontSize:11, color:"#6b9aad", marginTop:2 }}>{desc}</div>
                     </div>
-                    <Toggle value={adminSettings[key]} onChange={()=>setAdminSettings(s=>({...s,[key]:!s[key]}))} />
+                    <Toggle value={adminSettings[key]} onChange={()=>updateSetting(key,!adminSettings[key])} />
                   </div>
                 ))}
 
-                {/* HOME ANNOUNCEMENT */}
-                <p style={{ ...S.sectionTitle, marginTop:24 }}>📢 Home Screen Announcement</p>
+                <p style={{ ...S.sec, marginTop:24 }}>📢 Home Screen Announcement</p>
                 <input
                   style={S.inp}
                   type="text"
                   placeholder="e.g. Deadline for joining is Friday 5pm!"
                   value={adminSettings.homeMessage}
-                  onChange={e=>setAdminSettings(s=>({...s,homeMessage:e.target.value}))}
+                  onChange={e=>updateSetting("homeMessage", e.target.value)}
                 />
                 <div style={{ fontSize:11, color:"#6b9aad", marginTop:6, marginBottom:24 }}>Shows as a green banner on the home screen. Leave blank to hide.</div>
 
-                {/* PARTICIPANTS */}
+<p style={{ ...S.sec, marginTop:24 }}>💬 Custom Last Place Taunts</p>
+<textarea
+  style={{ ...S.inp, height:120, resize:"vertical", lineHeight:1.6 }}
+  placeholder={"One taunt per line, e.g.:\nMaybe football isn't your thing, Dave.\nHave you considered watching chess instead?"}
+  value={adminSettings.customRoasts}
+  onChange={e => updateSetting("customRoasts", e.target.value)}
+/>
+<div style={{ fontSize:11, color:"#6b9aad", marginTop:6, marginBottom:24 }}>
+  One taunt per line. These replace the default roasts when set. Leave blank to use the defaults.
+</div>
+
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
-                  <p style={{ ...S.sectionTitle, marginBottom:0 }}>👥 Participants ({participants.length})</p>
+                  <p style={{ ...S.sec, marginBottom:0 }}>👥 Participants ({participants.length})</p>
                   <button style={{ background:"rgba(239,68,68,0.12)", border:"1px solid rgba(239,68,68,0.3)", color:"#ef4444", padding:"6px 12px", borderRadius:8, cursor:"pointer", fontSize:12, fontWeight:600 }}
                     onClick={async()=>{ if(window.confirm("Clear ALL participants?")){await supabase.from("participants").delete().neq("id",0);showToast("Cleared");}}}>🗑️ Clear All</button>
                 </div>
