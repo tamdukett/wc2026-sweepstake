@@ -477,14 +477,44 @@ export default function App() {
                         </div>
                       </div>
                       {scorers.length > 0 && (
-                        <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid rgba(255,255,255,0.08)", fontSize:11, color:"#a0b8c8" }}>
-                          ⚽ {scorers.map((g,gi) => (
-                            <span key={gi}>
-                              {g.scorer?.name || "Unknown"} {g.minute}'{gi < scorers.length - 1 ? " · " : ""}
-                            </span>
-                          ))}
-                        </div>
-                      )}
+  <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid rgba(255,255,255,0.08)", fontSize:11, color:"#a0b8c8" }}>
+    ⚽ {scorers.map((g,gi) => (
+      <span key={gi}>
+        {g.scorer?.name || "Unknown"} {g.minute}'{gi < scorers.length - 1 ? " · " : ""}
+      </span>
+    ))}
+  </div>
+)}
+{(() => {
+  const sH = standings[m.homeTeam?.name] || {};
+  const sA = standings[m.awayTeam?.name] || {};
+  const hasData = sH.played > 0 || sA.played > 0;
+  if (!hasData) return null;
+  const scoreH = (sH.pts || 0) * 3 + (sH.won || 0) * 2 + (sH.gf || 0) * 0.5 + (sH.gd || 0) * 0.3 + 3;
+  const scoreA = (sA.pts || 0) * 3 + (sA.won || 0) * 2 + (sA.gf || 0) * 0.5 + (sA.gd || 0) * 0.3 + 3;
+  const drawWeight = (scoreH + scoreA) * 0.25;
+  const total = scoreH + scoreA + drawWeight;
+  const winH = Math.round((scoreH / total) * 100);
+  const winA = Math.round((scoreA / total) * 100);
+  const draw = 100 - winH - winA;
+  const homeShort = m.homeTeam?.shortName || m.homeTeam?.name?.split(" ")[0] || "Home";
+  const awayShort = m.awayTeam?.shortName || m.awayTeam?.name?.split(" ")[0] || "Away";
+  return (
+    <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid rgba(255,255,255,0.06)" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"#6b9aad", marginBottom:5, fontWeight:600 }}>
+        <span>{homeShort} {winH}%</span>
+        <span style={{ color:"#4a6a7a" }}>Draw {draw}%</span>
+        <span>{winA}% {awayShort}</span>
+      </div>
+      <div style={{ height:5, borderRadius:99, background:"rgba(255,255,255,0.06)", overflow:"hidden", display:"flex" }}>
+        <div style={{ width:`${winH}%`, background:"#00d46a", borderRadius:"99px 0 0 99px" }} />
+        <div style={{ width:`${draw}%`, background:"rgba(255,255,255,0.15)" }} />
+        <div style={{ width:`${winA}%`, background:"#3a86ff", borderRadius:"0 99px 99px 0" }} />
+      </div>
+      <div style={{ fontSize:9, color:"#3a5a6a", marginTop:4, textAlign:"center" }}>Based on current group stage stats · Not a guarantee</div>
+    </div>
+  );
+})()}
                     </div>
                   );
                 })}
@@ -576,14 +606,44 @@ export default function App() {
                     </div>
                   </div>
                   {scorers.length > 0 && (
-                    <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid rgba(255,255,255,0.08)", fontSize:11, color:"#a0b8c8" }}>
-                      ⚽ {scorers.map((g,gi) => (
-                        <span key={gi}>
-                          {g.scorer?.name || "Unknown"} {g.minute}'{gi < scorers.length - 1 ? " · " : ""}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+  <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid rgba(255,255,255,0.08)", fontSize:11, color:"#a0b8c8" }}>
+    ⚽ {scorers.map((g,gi) => (
+      <span key={gi}>
+        {g.scorer?.name || "Unknown"} {g.minute}'{gi < scorers.length - 1 ? " · " : ""}
+      </span>
+    ))}
+  </div>
+)}
+{(() => {
+  const sH = standings[m.homeTeam?.name] || {};
+  const sA = standings[m.awayTeam?.name] || {};
+  const hasData = sH.played > 0 || sA.played > 0;
+  if (!hasData) return null;
+  const scoreH = (sH.pts || 0) * 3 + (sH.won || 0) * 2 + (sH.gf || 0) * 0.5 + (sH.gd || 0) * 0.3 + 3;
+  const scoreA = (sA.pts || 0) * 3 + (sA.won || 0) * 2 + (sA.gf || 0) * 0.5 + (sA.gd || 0) * 0.3 + 3;
+  const drawWeight = (scoreH + scoreA) * 0.25;
+  const total = scoreH + scoreA + drawWeight;
+  const winH = Math.round((scoreH / total) * 100);
+  const winA = Math.round((scoreA / total) * 100);
+  const draw = 100 - winH - winA;
+  const homeShort = m.homeTeam?.shortName || m.homeTeam?.name?.split(" ")[0] || "Home";
+  const awayShort = m.awayTeam?.shortName || m.awayTeam?.name?.split(" ")[0] || "Away";
+  return (
+    <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid rgba(255,255,255,0.06)" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"#6b9aad", marginBottom:5, fontWeight:600 }}>
+        <span>{homeShort} {winH}%</span>
+        <span style={{ color:"#4a6a7a" }}>Draw {draw}%</span>
+        <span>{winA}% {awayShort}</span>
+      </div>
+      <div style={{ height:5, borderRadius:99, background:"rgba(255,255,255,0.06)", overflow:"hidden", display:"flex" }}>
+        <div style={{ width:`${winH}%`, background:"#00d46a", borderRadius:"99px 0 0 99px" }} />
+        <div style={{ width:`${draw}%`, background:"rgba(255,255,255,0.15)" }} />
+        <div style={{ width:`${winA}%`, background:"#3a86ff", borderRadius:"0 99px 99px 0" }} />
+      </div>
+      <div style={{ fontSize:9, color:"#3a5a6a", marginTop:4, textAlign:"center" }}>Based on current group stage stats · Not a guarantee</div>
+    </div>
+  );
+})()}
                 </div>
               );
             })}
