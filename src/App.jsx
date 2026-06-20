@@ -6,7 +6,6 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_ANON_KEY
 );
 
-const API_KEY = import.meta.env.VITE_FOOTBALL_API_KEY;
 const WC_ID = 2000;
 
 const WC_TEAMS = [
@@ -128,6 +127,7 @@ export default function App() {
   const [h2hA, setH2hA] = useState(null);
   const [h2hB, setH2hB] = useState(null);
   const [previousEnriched, setPreviousEnriched] = useState([]);
+  const [bracketPage, setBracketPage] = useState(0);
   const [adminSettings, setAdminSettings] = useState(DEFAULT_SETTINGS);
   const liveTimer = useRef(null);
 
@@ -145,19 +145,19 @@ export default function App() {
   }, []);
 
   const loadSettings = useCallback(async () => {
-  try {
-    const { data, error } = await supabase
-      .from("app_settings")
-      .select("settings")
-      .eq("id", "singleton")
-      .maybeSingle();
-    if (!error && data?.settings && Object.keys(data.settings).length > 0) {
-      setAdminSettings(prev => ({ ...prev, ...data.settings }));
+    try {
+      const { data, error } = await supabase
+        .from("app_settings")
+        .select("settings")
+        .eq("id", "singleton")
+        .maybeSingle();
+      if (!error && data?.settings && Object.keys(data.settings).length > 0) {
+        setAdminSettings(prev => ({ ...prev, ...data.settings }));
+      }
+    } catch (e) {
+      console.warn("Settings not loaded:", e);
     }
-  } catch (e) {
-    console.warn("Settings not loaded:", e);
-  }
-}, []);
+  }, []);
 
   const saveSettings = async (newSettings) => {
     await supabase
@@ -315,13 +315,10 @@ export default function App() {
   };
 
   const getRoast = seed => {
-  const custom = adminSettings.customRoasts
-    .split("\n")
-    .map(r => r.trim())
-    .filter(Boolean);
-  const pool = custom.length > 0 ? custom : ROASTS;
-  return pool[seed % pool.length];
-};
+    const custom = (adminSettings.customRoasts||"").split("\n").map(r=>r.trim()).filter(Boolean);
+    const pool = custom.length > 0 ? custom : ROASTS;
+    return pool[seed % pool.length];
+  };
 
   const matchStatusLabel = m => {
     if (m.status === "IN_PLAY") return `🔴 ${m.minute ? `${m.minute}' ` : ""}LIVE`;
@@ -362,6 +359,22 @@ export default function App() {
     };
   };
 
+  const knockoutRounds = [
+    { key:"ROUND_OF_32", label:"Round of 32" },
+    { key:"ROUND_OF_16", label:"Round of 16" },
+    { key:"QUARTER_FINALS", label:"Quarters" },
+    { key:"SEMI_FINALS", label:"Semis" },
+    { key:"THIRD_PLACE", label:"3rd Place" },
+    { key:"FINAL", label:"Final" },
+  ];
+
+  // Build bracket pages — 2 rounds per page
+  const activeRounds = knockoutRounds.filter(r => knockoutMatches.some(m => m.stage === r.key));
+  const bracketPages = [];
+  for (let i = 0; i < activeRounds.length; i += 2) {
+    bracketPages.push(activeRounds.slice(i, i + 2));
+  }
+
   const visibleTeams = WC_TEAMS.filter(t => {
     const ok = !takenTeams.includes(t.name) || selectedTeams.includes(t.name);
     const grp = groupFilter === "ALL" || t.group === groupFilter;
@@ -370,14 +383,6 @@ export default function App() {
   });
 
   const groups = ["ALL","A","B","C","D","E","F","G","H","I","J","K","L"];
-  const knockoutRounds = [
-    { key:"ROUND_OF_32", label:"Round of 32" },
-    { key:"ROUND_OF_16", label:"Round of 16" },
-    { key:"QUARTER_FINALS", label:"Quarter Finals" },
-    { key:"SEMI_FINALS", label:"Semi Finals" },
-    { key:"THIRD_PLACE", label:"3rd Place" },
-    { key:"FINAL", label:"Final" },
-  ];
 
   const S = {
     app: { minHeight:"100vh", background:"linear-gradient(160deg,#0a1628 0%,#0d2137 60%,#0a1f1a 100%)", fontFamily:"'Inter','Segoe UI',sans-serif", color:"#e8f4f8" },
@@ -424,6 +429,66 @@ export default function App() {
     );
   };
 
+  const KnockoutMatchCard = ({ m }) => {
+    const isLive = ["IN_PLAY","PAUSED","HALFTIME"].includes(m.status);
+    const isDone = m.status === "FINISHED";
+    const homeOwners = participants.filter(p => p.teams.some(t => m.homeTeam?.name?.includes(t) || t.includes(m.homeTeam?.name || "")));
+    const awayOwners = participants.filter(p => p.teams.some(t => m.awayTeam?.name?.includes(t) || t.includes(m.awayTeam?.name || "")));
+    const kickoff = m.utcDate ? new Date(m.utcDate).toLocaleDateString("en-GB",{day:"numeric",month:"short"}) + " " + new Date(m.utcDate).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}) : "";
+    const homeScore = m.score?.fullTime?.home;
+    const awayScore = m.score?.fullTime?.away;
+    const homeWon = isDone && homeScore > awayScore;
+    const awayWon = isDone && awayScore > homeScore;
+    const banner = getOwnerBanner(homeOwners, awayOwners);
+    return (
+      <div style={{
+        background: isLive ? "rgba(239,68,68,0.08)" : "rgba(255,255,255,0.04)",
+        border: isLive ? "1px solid rgba(239,68,68,0.4)" : banner ? "1px solid rgba(0,212,106,0.3)" : "1px solid rgba(255,255,255,0.1)",
+        borderRadius:12, overflow:"hidden", marginBottom:8,
+      }}>
+        <div style={{ padding:"6px 10px", borderBottom:"1px solid rgba(255,255,255,0.06)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <span style={{ fontSize:10, color:isLive?"#ef4444":"#6b9aad", fontWeight:600, display:"flex", alignItems:"center", gap:4 }}>
+            {isLive && <span className="live-pulse" />}
+            {isLive ? `${m.minute?`${m.minute}'`:""}LIVE` : kickoff}
+          </span>
+          {banner && <span style={{ fontSize:9, color:"#00d46a", fontWeight:700 }}>⭐</span>}
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 10px", borderBottom:"1px solid rgba(255,255,255,0.05)", background:homeWon?"rgba(0,212,106,0.05)":"transparent" }}>
+          <span style={{ fontSize:16, flexShrink:0 }}>{m.homeTeam?.name ? getFlag(m.homeTeam.name) : "🏳️"}</span>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontSize:12, fontWeight:homeWon?700:500, color:homeWon?"#00d46a":m.homeTeam?.name?"#e8f4f8":"#4a6a7a", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+              {m.homeTeam?.name || "TBD"}
+            </div>
+            {homeOwners.length > 0 && (
+              <div style={{ display:"flex", gap:2, marginTop:2 }}>
+                {homeOwners.map(o=><span key={o.id} style={{ background:o.color, color:"#fff", fontSize:7, fontWeight:700, padding:"1px 3px", borderRadius:99 }}>{getInitials(o.name)}</span>)}
+              </div>
+            )}
+          </div>
+          {(isLive||isDone) && homeScore !== null && (
+            <span style={{ fontSize:15, fontWeight:800, color:homeWon?"#00d46a":"#6b9aad", flexShrink:0 }}>{homeScore}</span>
+          )}
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 10px", background:awayWon?"rgba(0,212,106,0.05)":"transparent" }}>
+          <span style={{ fontSize:16, flexShrink:0 }}>{m.awayTeam?.name ? getFlag(m.awayTeam.name) : "🏳️"}</span>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontSize:12, fontWeight:awayWon?700:500, color:awayWon?"#00d46a":m.awayTeam?.name?"#e8f4f8":"#4a6a7a", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+              {m.awayTeam?.name || "TBD"}
+            </div>
+            {awayOwners.length > 0 && (
+              <div style={{ display:"flex", gap:2, marginTop:2 }}>
+                {awayOwners.map(o=><span key={o.id} style={{ background:o.color, color:"#fff", fontSize:7, fontWeight:700, padding:"1px 3px", borderRadius:99 }}>{getInitials(o.name)}</span>)}
+              </div>
+            )}
+          </div>
+          {(isLive||isDone) && awayScore !== null && (
+            <span style={{ fontSize:15, fontWeight:800, color:awayWon?"#00d46a":"#6b9aad", flexShrink:0 }}>{awayScore}</span>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div style={S.app}>
       <style>{`
@@ -443,7 +508,6 @@ export default function App() {
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
         .match-card { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.07); border-radius:12px; padding:12px 16px; margin-bottom:8px; }
         .match-card.live { border-color:rgba(239,68,68,0.4); background:rgba(239,68,68,0.05); }
-        .ko-match { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:10px 12px; min-width:180px; }
         input::placeholder { color:#4a6a7a; }
         .trow { display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.05); }
       `}</style>
@@ -1034,142 +1098,65 @@ export default function App() {
         )}
 
         {screen === "knockout" && (
-  <div>
-    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18 }}>
-      <h2 style={{ fontSize:19, fontWeight:700 }}>🏆 Knockout Bracket</h2>
-      <button className="nb" style={{ fontSize:12, padding:"7px 12px" }} onClick={fetchAll}>🔄 Refresh</button>
-    </div>
-    {knockoutMatches.length === 0 ? (
-      <div style={{ ...S.card, padding:"40px 24px", textAlign:"center" }}>
-        <div style={{ fontSize:44, marginBottom:12 }}>🏆</div>
-        <div style={{ fontWeight:600, marginBottom:8, fontSize:16 }}>Knockout stage not started yet</div>
-        <div style={{ color:"#6b9aad", fontSize:14 }}>The bracket will appear once the group stage is complete</div>
-      </div>
-    ) : (
-      <div style={{ overflowX:"auto", paddingBottom:16, WebkitOverflowScrolling:"touch" }}>
-        <div style={{ display:"flex", alignItems:"flex-start", gap:0, minWidth: Math.min(knockoutRounds.filter(r => knockoutMatches.some(m => m.stage === r.key)).length, 6) * 200 + "px" }}>
-          {knockoutRounds.map(({ key, label }, roundIndex) => {
-            const roundMatches = knockoutMatches.filter(m => m.stage === key);
-            if (!roundMatches.length) return null;
-            const totalRounds = knockoutRounds.filter(r => knockoutMatches.some(m => m.stage === r.key)).length;
-            const matchHeight = 90;
-            const gap = Math.pow(2, roundIndex) * matchHeight;
-            const topOffset = (Math.pow(2, roundIndex) - 1) * (matchHeight / 2);
-
-            return (
-              <div key={key} style={{ display:"flex", flexDirection:"row", flexShrink:0 }}>
-                {/* Round column */}
-                <div style={{ width:190, flexShrink:0 }}>
-                  {/* Header */}
-                  <div style={{ textAlign:"center", fontSize:10, fontWeight:700, color:"#6b9aad", textTransform:"uppercase", letterSpacing:"0.08em", padding:"0 8px 10px", marginBottom:8, borderBottom:"1px solid rgba(255,255,255,0.08)" }}>
-                    {label}
-                  </div>
-                  {/* Matches */}
-                  <div style={{ position:"relative", paddingTop: topOffset }}>
-                    {roundMatches.map((m, mi) => {
-                      const isLive = ["IN_PLAY","PAUSED","HALFTIME"].includes(m.status);
-                      const isDone = m.status === "FINISHED";
-                      const homeOwners = participants.filter(p => p.teams.some(t => m.homeTeam?.name?.includes(t) || t.includes(m.homeTeam?.name || "")));
-                      const awayOwners = participants.filter(p => p.teams.some(t => m.awayTeam?.name?.includes(t) || t.includes(m.awayTeam?.name || "")));
-                      const kickoff = m.utcDate ? new Date(m.utcDate).toLocaleDateString("en-GB",{day:"numeric",month:"short"}) + ", " + new Date(m.utcDate).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}) : "";
-                      const homeScore = m.score?.fullTime?.home;
-                      const awayScore = m.score?.fullTime?.away;
-                      const homeWon = isDone && homeScore > awayScore;
-                      const awayWon = isDone && awayScore > homeScore;
-                      return (
-                        <div key={m.id} style={{ marginBottom: gap - matchHeight, padding:"0 8px", position:"relative" }}>
-                          {/* Match card */}
-                          <div style={{
-                            background: isLive ? "rgba(239,68,68,0.1)" : "rgba(255,255,255,0.05)",
-                            border: isLive ? "1px solid rgba(239,68,68,0.5)" : "1px solid rgba(255,255,255,0.12)",
-                            borderRadius:10,
-                            overflow:"hidden",
-                            minHeight: matchHeight,
-                          }}>
-                            {/* Time */}
-                            <div style={{ padding:"5px 8px 3px", fontSize:9, color: isLive?"#ef4444":"#6b9aad", fontWeight:600, display:"flex", alignItems:"center", gap:4 }}>
-                              {isLive && <span className="live-pulse" />}
-                              {isLive ? `${m.minute?`${m.minute}'`:""}LIVE` : kickoff}
-                            </div>
-                            {/* Home */}
-                            <div style={{ display:"flex", alignItems:"center", gap:5, padding:"4px 8px", borderTop:"1px solid rgba(255,255,255,0.06)", borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
-                              <span style={{ fontSize:13, flexShrink:0 }}>{m.homeTeam?.name ? getFlag(m.homeTeam.name) : "🏳️"}</span>
-                              <div style={{ flex:1, minWidth:0 }}>
-                                <div style={{ fontSize:11, fontWeight:homeWon?700:400, color:homeWon?"#00d46a":m.homeTeam?.name?"#e8f4f8":"#4a6a7a", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                                  {m.homeTeam?.name || "TBD"}
-                                </div>
-                                {homeOwners.length > 0 && (
-                                  <div style={{ display:"flex", gap:2, marginTop:1 }}>
-                                    {homeOwners.slice(0,3).map(o=><span key={o.id} style={{ background:o.color, color:"#fff", fontSize:7, fontWeight:700, padding:"1px 3px", borderRadius:99 }}>{getInitials(o.name)}</span>)}
-                                  </div>
-                                )}
-                              </div>
-                              {(isLive||isDone) && homeScore !== null && (
-                                <span style={{ fontSize:13, fontWeight:800, color:homeWon?"#00d46a":"#6b9aad", flexShrink:0, minWidth:14, textAlign:"right" }}>{homeScore}</span>
-                              )}
-                            </div>
-                            {/* Away */}
-                            <div style={{ display:"flex", alignItems:"center", gap:5, padding:"4px 8px" }}>
-                              <span style={{ fontSize:13, flexShrink:0 }}>{m.awayTeam?.name ? getFlag(m.awayTeam.name) : "🏳️"}</span>
-                              <div style={{ flex:1, minWidth:0 }}>
-                                <div style={{ fontSize:11, fontWeight:awayWon?700:400, color:awayWon?"#00d46a":m.awayTeam?.name?"#e8f4f8":"#4a6a7a", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                                  {m.awayTeam?.name || "TBD"}
-                                </div>
-                                {awayOwners.length > 0 && (
-                                  <div style={{ display:"flex", gap:2, marginTop:1 }}>
-                                    {awayOwners.slice(0,3).map(o=><span key={o.id} style={{ background:o.color, color:"#fff", fontSize:7, fontWeight:700, padding:"1px 3px", borderRadius:99 }}>{getInitials(o.name)}</span>)}
-                                  </div>
-                                )}
-                              </div>
-                              {(isLive||isDone) && awayScore !== null && (
-                                <span style={{ fontSize:13, fontWeight:800, color:awayWon?"#00d46a":"#6b9aad", flexShrink:0, minWidth:14, textAlign:"right" }}>{awayScore}</span>
-                              )}
-                            </div>
-                          </div>
-                          {/* Right connector stub */}
-                          {key !== "FINAL" && key !== "THIRD_PLACE" && (
-                            <div style={{ position:"absolute", right:0, top:"50%", width:8, height:1, background:"rgba(100,160,200,0.3)" }} />
-                          )}
-                          {/* Vertical bracket lines on left (connecting from previous round) */}
-                          {roundIndex > 0 && mi % 2 === 0 && (
-                            <div style={{
-                              position:"absolute",
-                              left:0,
-                              top:"50%",
-                              width:8,
-                              height: gap,
-                              borderLeft:"1px solid rgba(100,160,200,0.3)",
-                              borderBottom:"1px solid rgba(100,160,200,0.3)",
-                              borderBottomLeftRadius:4,
-                            }} />
-                          )}
-                          {roundIndex > 0 && mi % 2 === 1 && (
-                            <div style={{
-                              position:"absolute",
-                              left:0,
-                              bottom:"50%",
-                              width:8,
-                              height: gap,
-                              borderLeft:"1px solid rgba(100,160,200,0.3)",
-                              borderTop:"1px solid rgba(100,160,200,0.3)",
-                              borderTopLeftRadius:4,
-                            }} />
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-                {/* Gap column between rounds */}
-                <div style={{ width:8, flexShrink:0 }} />
+          <div>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18 }}>
+              <h2 style={{ fontSize:19, fontWeight:700 }}>🏆 Knockout</h2>
+              <button className="nb" style={{ fontSize:12, padding:"7px 12px" }} onClick={fetchAll}>🔄 Refresh</button>
+            </div>
+            {knockoutMatches.length === 0 ? (
+              <div style={{ ...S.card, padding:"40px 24px", textAlign:"center" }}>
+                <div style={{ fontSize:44, marginBottom:12 }}>🏆</div>
+                <div style={{ fontWeight:600, marginBottom:8, fontSize:16 }}>Knockout stage not started yet</div>
+                <div style={{ color:"#6b9aad", fontSize:14 }}>The bracket will appear once the group stage is complete</div>
               </div>
-            );
-          })}
-        </div>
-      </div>
-    )}
-  </div>
-)}
+            ) : (
+              <div>
+                {/* Navigation */}
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16, gap:8 }}>
+                  <button
+                    onClick={()=>setBracketPage(p=>Math.max(0,p-1))}
+                    disabled={bracketPage===0}
+                    style={{ background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.12)", color:bracketPage===0?"#3a5a6a":"#e8f4f8", borderRadius:8, padding:"8px 16px", cursor:bracketPage===0?"not-allowed":"pointer", fontSize:16, fontWeight:700, flexShrink:0 }}>
+                    ←
+                  </button>
+                  <div style={{ display:"flex", gap:4, flexWrap:"wrap", justifyContent:"center", flex:1 }}>
+                    {bracketPages.map((page, pi) =>
+                      page.map(r => (
+                        <button
+                          key={r.key}
+                          onClick={()=>setBracketPage(pi)}
+                          style={{ fontSize:10, fontWeight:700, padding:"5px 10px", borderRadius:20, cursor:"pointer", border:"none", background:bracketPage===pi?"#00d46a":"rgba(255,255,255,0.08)", color:bracketPage===pi?"#0a1628":"#6b9aad", whiteSpace:"nowrap" }}>
+                          {r.label}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                  <button
+                    onClick={()=>setBracketPage(p=>Math.min(bracketPages.length-1,p+1))}
+                    disabled={bracketPage===bracketPages.length-1}
+                    style={{ background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.12)", color:bracketPage===bracketPages.length-1?"#3a5a6a":"#e8f4f8", borderRadius:8, padding:"8px 16px", cursor:bracketPage===bracketPages.length-1?"not-allowed":"pointer", fontSize:16, fontWeight:700, flexShrink:0 }}>
+                    →
+                  </button>
+                </div>
+
+                {/* Round columns */}
+                <div style={{ display:"flex", gap:10 }}>
+                  {bracketPages[bracketPage]?.map(({ key, label }) => {
+                    const roundMatches = knockoutMatches.filter(m => m.stage === key);
+                    return (
+                      <div key={key} style={{ flex:1, minWidth:0 }}>
+                        <div style={{ textAlign:"center", fontSize:11, fontWeight:700, color:"#00d46a", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10, padding:"6px 0", borderBottom:"1px solid rgba(0,212,106,0.2)" }}>
+                          {label}
+                        </div>
+                        {roundMatches.map(m => <KnockoutMatchCard key={m.id} m={m} />)}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {screen === "register" && (
           <div style={{ ...S.card, padding:"24px 20px" }}>
@@ -1260,7 +1247,7 @@ export default function App() {
                   ["showPulse","💓 Office Pulse","Show or hide the live pulse dashboard"],
                   ["showFixtures","📅 Fixtures","Show or hide the fixtures tab"],
                   ["showGroups","🌍 Groups","Show or hide the group standings tab"],
-                  ["showBracket","🏆 Knockout","Show or hide the knockout bracket tab"],
+                  ["showBracket","🏆 Knockout","Show or hide the knockout tab"],
                   ["showJoin","➕ Join Tab","Show or hide the join button in nav"],
                 ].map(([key,label,desc])=>(
                   <div key={key} className="trow">
@@ -1293,20 +1280,20 @@ export default function App() {
                   type="text"
                   placeholder="e.g. Deadline for joining is Friday 5pm!"
                   value={adminSettings.homeMessage}
-                  onChange={e=>updateSetting("homeMessage", e.target.value)}
+                  onChange={e=>setAdminSettings(s=>({...s,homeMessage:e.target.value}))}
+                  onBlur={e=>updateSetting("homeMessage",e.target.value)}
                 />
                 <div style={{ fontSize:11, color:"#6b9aad", marginTop:6, marginBottom:24 }}>Shows as a green banner on the home screen. Leave blank to hide.</div>
 
-<p style={{ ...S.sec, marginTop:24 }}>💬 Custom Last Place Taunts</p>
-<textarea
-  style={{ ...S.inp, height:120, resize:"vertical", lineHeight:1.6 }}
-  placeholder={"One taunt per line, e.g.:\nMaybe football isn't your thing, Dave.\nHave you considered watching chess instead?"}
-  value={adminSettings.customRoasts}
-  onChange={e => updateSetting("customRoasts", e.target.value)}
-/>
-<div style={{ fontSize:11, color:"#6b9aad", marginTop:6, marginBottom:24 }}>
-  One taunt per line. These replace the default roasts when set. Leave blank to use the defaults.
-</div>
+                <p style={{ ...S.sec }}>💬 Custom Last Place Taunts</p>
+                <textarea
+                  style={{ ...S.inp, height:120, resize:"vertical", lineHeight:1.6 }}
+                  placeholder={"One taunt per line, e.g.:\nMaybe football isn't your thing.\nHave you considered watching chess instead?"}
+                  value={adminSettings.customRoasts}
+                  onChange={e=>setAdminSettings(s=>({...s,customRoasts:e.target.value}))}
+                  onBlur={e=>updateSetting("customRoasts",e.target.value)}
+                />
+                <div style={{ fontSize:11, color:"#6b9aad", marginTop:6, marginBottom:24 }}>One taunt per line. Leave blank to use the defaults.</div>
 
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
                   <p style={{ ...S.sec, marginBottom:0 }}>👥 Participants ({participants.length})</p>
