@@ -693,14 +693,14 @@ export default function App() {
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:18 }}>
                   <div>
                     <label style={S.lbl}>Player A</label>
-                    <select style={S.inp} value={h2hA ?? ""} onChange={e => setH2hA(Number(e.target.value) || null)}>
+                    <select style={{...S.inp, color:"#0a1628", background:"#e8f4f8"}} value={h2hA ?? ""} onChange={e => setH2hA(Number(e.target.value) || null)}>
                       <option value="">Select...</option>
                       {enriched.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </div>
                   <div>
                     <label style={S.lbl}>Player B</label>
-                    <select style={S.inp} value={h2hB ?? ""} onChange={e => setH2hB(Number(e.target.value) || null)}>
+                    <select style={{...S.inp, color:"#0a1628", background:"#e8f4f8"}} value={h2hB ?? ""} onChange={e => setH2hB(Number(e.target.value) || null)}>
                       <option value="">Select...</option>
                       {enriched.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
@@ -708,65 +708,160 @@ export default function App() {
                 </div>
 
                 {h2hPlayerA && h2hPlayerB && h2hPlayerA.id !== h2hPlayerB.id ? (
-                  <div>
-                    <div style={{ ...S.card, padding:"20px", marginBottom:14, textAlign:"center" }}>
-                      <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:20 }}>
-                        <div style={{ flex:1 }}>
-                          <div style={{ width:50, height:50, borderRadius:"50%", background:h2hPlayerA.color, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700, fontSize:16, color:"#fff", margin:"0 auto 8px" }}>{getInitials(h2hPlayerA.name)}</div>
-                          <div style={{ fontWeight:700, fontSize:15 }}>{h2hPlayerA.name}</div>
-                          <div style={{ fontSize:28, fontWeight:800, color: h2hPlayerA.totalPts >= h2hPlayerB.totalPts ? "#00d46a" : "#6b9aad" }}>{h2hPlayerA.totalPts}</div>
-                        </div>
-                        <div style={{ fontSize:18, fontWeight:700, color:"#6b9aad" }}>VS</div>
-                        <div style={{ flex:1 }}>
-                          <div style={{ width:50, height:50, borderRadius:"50%", background:h2hPlayerB.color, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700, fontSize:16, color:"#fff", margin:"0 auto 8px" }}>{getInitials(h2hPlayerB.name)}</div>
-                          <div style={{ fontWeight:700, fontSize:15 }}>{h2hPlayerB.name}</div>
-                          <div style={{ fontSize:28, fontWeight:800, color: h2hPlayerB.totalPts >= h2hPlayerA.totalPts ? "#00d46a" : "#6b9aad" }}>{h2hPlayerB.totalPts}</div>
-                        </div>
-                      </div>
-                      <div style={{ marginTop:14, fontSize:13, color:"#6b9aad" }}>
-                        {h2hPlayerA.totalPts === h2hPlayerB.totalPts
-                          ? "Dead even — anyone's game"
-                          : `${h2hPlayerA.totalPts > h2hPlayerB.totalPts ? h2hPlayerA.name : h2hPlayerB.name} is ahead by ${Math.abs(h2hPlayerA.totalPts - h2hPlayerB.totalPts)} pts`}
-                      </div>
-                    </div>
+  <div>
+    <div style={{ ...S.card, padding:"20px", marginBottom:14, textAlign:"center" }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:20 }}>
+        <div style={{ flex:1 }}>
+          <div style={{ width:50, height:50, borderRadius:"50%", background:h2hPlayerA.color, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700, fontSize:16, color:"#fff", margin:"0 auto 8px" }}>{getInitials(h2hPlayerA.name)}</div>
+          <div style={{ fontWeight:700, fontSize:15 }}>{h2hPlayerA.name}</div>
+          <div style={{ fontSize:28, fontWeight:800, color: h2hPlayerA.totalPts >= h2hPlayerB.totalPts ? "#00d46a" : "#6b9aad" }}>{h2hPlayerA.totalPts}</div>
+        </div>
+        <div style={{ fontSize:18, fontWeight:700, color:"#6b9aad" }}>VS</div>
+        <div style={{ flex:1 }}>
+          <div style={{ width:50, height:50, borderRadius:"50%", background:h2hPlayerB.color, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700, fontSize:16, color:"#fff", margin:"0 auto 8px" }}>{getInitials(h2hPlayerB.name)}</div>
+          <div style={{ fontWeight:700, fontSize:15 }}>{h2hPlayerB.name}</div>
+          <div style={{ fontSize:28, fontWeight:800, color: h2hPlayerB.totalPts >= h2hPlayerA.totalPts ? "#00d46a" : "#6b9aad" }}>{h2hPlayerB.totalPts}</div>
+        </div>
+      </div>
+      <div style={{ marginTop:14, fontSize:13, color:"#6b9aad" }}>
+        {h2hPlayerA.totalPts === h2hPlayerB.totalPts
+          ? "Dead even — anyone's game"
+          : `${h2hPlayerA.totalPts > h2hPlayerB.totalPts ? h2hPlayerA.name : h2hPlayerB.name} is ahead by ${Math.abs(h2hPlayerA.totalPts - h2hPlayerB.totalPts)} pts`}
+      </div>
+    </div>
 
-                    <div style={{ ...S.card, padding:"18px 20px" }}>
-                      <p style={{ fontSize:12, fontWeight:700, color:"#6b9aad", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:14 }}>Team Comparison</p>
-                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
-                        <div>
-                          {h2hPlayerA.teams.map(t => {
-                            const info = WC_TEAMS.find(x => x.name===t);
-                            const ts = standings[t] || {};
-                            return (
-                              <div key={t} style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8, fontSize:12 }}>
-                                <span>{info?.flag}</span>
-                                <span style={{ flex:1 }}>{t}</span>
-                                <span style={{ fontWeight:700, color:"#00d46a" }}>{ts.pts ?? 0}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                        <div>
-                          {h2hPlayerB.teams.map(t => {
-                            const info = WC_TEAMS.find(x => x.name===t);
-                            const ts = standings[t] || {};
-                            return (
-                              <div key={t} style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8, fontSize:12, justifyContent:"flex-end" }}>
-                                <span style={{ fontWeight:700, color:"#00d46a" }}>{ts.pts ?? 0}</span>
-                                <span style={{ flex:1, textAlign:"right" }}>{t}</span>
-                                <span>{info?.flag}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ ...S.card, padding:"30px 24px", textAlign:"center", color:"#6b9aad", fontSize:13 }}>
-                    Pick two different people above to compare
-                  </div>
-                )}
+    {/* ODDS & STATS CARD */}
+    {(() => {
+      const ptsA = h2hPlayerA.totalPts;
+      const ptsB = h2hPlayerB.totalPts;
+      const winsA = h2hPlayerA.totalWon;
+      const winsB = h2hPlayerB.totalWon;
+      const gdA = h2hPlayerA.totalGd;
+      const gdB = h2hPlayerB.totalGd;
+      const teamsA = h2hPlayerA.teams.length;
+      const teamsB = h2hPlayerB.teams.length;
+
+      // Teams still in contention (not yet eliminated — played < 3 games in group stage)
+      const activeA = h2hPlayerA.teams.filter(t => (standings[t]?.played ?? 0) < 3).length;
+      const activeB = h2hPlayerB.teams.filter(t => (standings[t]?.played ?? 0) < 3).length;
+
+      // Max possible remaining points (assume 3 pts per remaining game, rough estimate)
+      const remainingA = h2hPlayerA.teams.reduce((s,t) => {
+        const played = standings[t]?.played ?? 0;
+        const remaining = Math.max(0, 3 - played);
+        return s + remaining * 3;
+      }, 0);
+      const remainingB = h2hPlayerB.teams.reduce((s,t) => {
+        const played = standings[t]?.played ?? 0;
+        const remaining = Math.max(0, 3 - played);
+        return s + remaining * 3;
+      }, 0);
+
+      const maxA = ptsA + remainingA;
+      const maxB = ptsB + remainingB;
+
+      // Win probability — weighted score based on current pts, potential, wins, gd
+      const scoreA = (ptsA * 3) + (winsA * 2) + (gdA * 0.5) + (remainingA * 1.5) + (activeA * 2);
+      const scoreB = (ptsB * 3) + (winsB * 2) + (gdB * 0.5) + (remainingB * 1.5) + (activeB * 2);
+      const total = scoreA + scoreB || 1;
+      const oddsA = Math.round((scoreA / total) * 100);
+      const oddsB = 100 - oddsA;
+
+      const leader = ptsA > ptsB ? h2hPlayerA.name : ptsB > ptsA ? h2hPlayerB.name : null;
+      const verdict = oddsA > 65 ? `${h2hPlayerA.name} looks very strong` :
+                      oddsB > 65 ? `${h2hPlayerB.name} looks very strong` :
+                      oddsA > 55 ? `${h2hPlayerA.name} has the edge` :
+                      oddsB > 55 ? `${h2hPlayerB.name} has the edge` :
+                      "Too close to call — could go either way";
+
+      return (
+        <div style={{ ...S.card, padding:"18px 20px", marginBottom:14 }}>
+          <p style={{ fontSize:12, fontWeight:700, color:"#6b9aad", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:16 }}>📊 Stats & Odds</p>
+
+          {/* Win probability bar */}
+          <div style={{ marginBottom:16 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, fontWeight:700, marginBottom:6 }}>
+              <span style={{ color:h2hPlayerA.color }}>{h2hPlayerA.name} {oddsA}%</span>
+              <span style={{ color:"#6b9aad", fontSize:11 }}>Win Probability</span>
+              <span style={{ color:h2hPlayerB.color }}>{oddsB}% {h2hPlayerB.name}</span>
+            </div>
+            <div style={{ height:10, borderRadius:99, background:"rgba(255,255,255,0.08)", overflow:"hidden" }}>
+              <div style={{ height:"100%", width:`${oddsA}%`, background:`linear-gradient(90deg, ${h2hPlayerA.color}, ${h2hPlayerA.color}cc)`, borderRadius:99, transition:"width 0.6s ease" }} />
+            </div>
+          </div>
+
+          {/* Stats grid */}
+          {[
+            ["Current Points", ptsA, ptsB],
+            ["Wins", winsA, winsB],
+            ["Goal Difference", gdA, gdB],
+            ["Teams", teamsA, teamsB],
+            ["Max Possible Pts", maxA, maxB],
+            ["Teams Still Active", activeA, activeB],
+          ].map(([label, valA, valB]) => {
+            const better = valA > valB ? "A" : valB > valA ? "B" : "even";
+            return (
+              <div key={label} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
+                <div style={{ flex:1, textAlign:"right" }}>
+                  <span style={{ fontWeight:700, fontSize:14, color: better==="A" ? "#00d46a" : better==="even" ? "#e8f4f8" : "#6b9aad" }}>{valA}</span>
+                </div>
+                <div style={{ width:140, textAlign:"center", fontSize:11, color:"#6b9aad", flexShrink:0 }}>{label}</div>
+                <div style={{ flex:1 }}>
+                  <span style={{ fontWeight:700, fontSize:14, color: better==="B" ? "#00d46a" : better==="even" ? "#e8f4f8" : "#6b9aad" }}>{valB}</span>
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Verdict */}
+          <div style={{ marginTop:14, padding:"10px 14px", background:"rgba(0,212,106,0.08)", border:"1px solid rgba(0,212,106,0.2)", borderRadius:10, fontSize:13, color:"#00d46a", textAlign:"center", fontWeight:600 }}>
+            🔮 {verdict}
+          </div>
+          <div style={{ marginTop:8, fontSize:11, color:"#4a6a7a", textAlign:"center" }}>
+            Based on current points, goal difference, wins and remaining games. Not a guarantee!
+          </div>
+        </div>
+      );
+    })()}
+
+    {/* TEAM COMPARISON */}
+    <div style={{ ...S.card, padding:"18px 20px" }}>
+      <p style={{ fontSize:12, fontWeight:700, color:"#6b9aad", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:14 }}>Team Comparison</p>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+        <div>
+          {h2hPlayerA.teams.map(t => {
+            const info = WC_TEAMS.find(x => x.name===t);
+            const ts = standings[t] || {};
+            return (
+              <div key={t} style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8, fontSize:12 }}>
+                <span>{info?.flag}</span>
+                <span style={{ flex:1 }}>{t}</span>
+                <span style={{ fontWeight:700, color:"#00d46a" }}>{ts.pts ?? 0}</span>
+              </div>
+            );
+          })}
+        </div>
+        <div>
+          {h2hPlayerB.teams.map(t => {
+            const info = WC_TEAMS.find(x => x.name===t);
+            const ts = standings[t] || {};
+            return (
+              <div key={t} style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8, fontSize:12, justifyContent:"flex-end" }}>
+                <span style={{ fontWeight:700, color:"#00d46a" }}>{ts.pts ?? 0}</span>
+                <span style={{ flex:1, textAlign:"right" }}>{t}</span>
+                <span>{info?.flag}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  </div>
+) : (
+  <div style={{ ...S.card, padding:"30px 24px", textAlign:"center", color:"#6b9aad", fontSize:13 }}>
+    Pick two different people above to compare
+  </div>
+)}
               </div>
             )}
           </div>
