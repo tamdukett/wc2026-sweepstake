@@ -145,15 +145,19 @@ export default function App() {
   }, []);
 
   const loadSettings = useCallback(async () => {
+  try {
     const { data, error } = await supabase
       .from("app_settings")
       .select("settings")
       .eq("id", "singleton")
-      .single();
+      .maybeSingle();
     if (!error && data?.settings && Object.keys(data.settings).length > 0) {
       setAdminSettings(prev => ({ ...prev, ...data.settings }));
     }
-  }, []);
+  } catch (e) {
+    console.warn("Settings not loaded:", e);
+  }
+}, []);
 
   const saveSettings = async (newSettings) => {
     await supabase
