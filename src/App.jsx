@@ -1034,56 +1034,109 @@ export default function App() {
         )}
 
         {screen === "knockout" && (
-          <div>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18 }}>
-              <h2 style={{ fontSize:19, fontWeight:700 }}>Knockout Bracket</h2>
-              <button className="nb" style={{ fontSize:12, padding:"7px 12px" }} onClick={fetchAll}>🔄 Refresh</button>
-            </div>
-            {knockoutMatches.length===0 ? (
-              <div style={{ ...S.card, padding:"40px 24px", textAlign:"center" }}>
-                <div style={{ fontSize:44, marginBottom:12 }}>🏆</div>
-                <div style={{ fontWeight:600, marginBottom:8, fontSize:16 }}>Knockout stage not started yet</div>
-                <div style={{ color:"#6b9aad", fontSize:14 }}>The bracket will appear once the group stage is complete</div>
-              </div>
-            ) : knockoutRounds.map(({key,label})=>{
-              const roundMatches=knockoutMatches.filter(m=>m.stage===key);
-              if (!roundMatches.length) return null;
-              return (
-                <div key={key} style={{ marginBottom:24 }}>
-                  <p style={{ fontSize:13, fontWeight:700, color:"#00d46a", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:12 }}>{label}</p>
-                  <div style={{ display:"flex", flexWrap:"wrap", gap:10 }}>
-                    {roundMatches.map(m=>{
-                      const isLive=["IN_PLAY","PAUSED","HALFTIME"].includes(m.status);
-                      const isDone=m.status==="FINISHED";
-                      const homeOwners=participants.filter(p=>p.teams.some(t=>m.homeTeam?.name?.includes(t)));
-                      const awayOwners=participants.filter(p=>p.teams.some(t=>m.awayTeam?.name?.includes(t)));
-                      return (
-                        <div key={m.id} className="ko-match" style={{ border:isLive?"1px solid rgba(239,68,68,0.4)":"1px solid rgba(255,255,255,0.08)" }}>
-                          <div style={{ fontSize:10, color:isLive?"#ef4444":"#6b9aad", fontWeight:700, marginBottom:8 }}>
-                            {isLive&&<span className="live-pulse" style={{ marginRight:4 }} />}
-                            {matchStatusLabel(m)}
-                          </div>
-                          {[{team:m.homeTeam,score:m.score?.fullTime?.home,owners:homeOwners},{team:m.awayTeam,score:m.score?.fullTime?.away,owners:awayOwners}].map((side,si)=>(
-                            <div key={si} style={{ display:"flex", alignItems:"center", gap:8, padding:"4px 0", borderBottom:si===0?"1px solid rgba(255,255,255,0.06)":"none" }}>
-                              <span style={{ fontSize:16 }}>{getFlag(side.team?.name)}</span>
-                              <div style={{ flex:1, minWidth:0 }}>
-                                <div style={{ fontSize:13, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{side.team?.name||"TBD"}</div>
-                                <div style={{ display:"flex", gap:3, marginTop:2 }}>
-                                  {side.owners.map(o=><span key={o.id} style={{ background:o.color, color:"#fff", fontSize:8, fontWeight:700, padding:"1px 4px", borderRadius:99 }}>{getInitials(o.name)}</span>)}
-                                </div>
-                              </div>
-                              {(isLive||isDone)&&<span style={{ fontWeight:800, color:"#00d46a", fontSize:16, flexShrink:0 }}>{side.score??0}</span>}
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    })}
-                  </div>
+  <div>
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18 }}>
+      <h2 style={{ fontSize:19, fontWeight:700 }}>🏆 Knockout Bracket</h2>
+      <button className="nb" style={{ fontSize:12, padding:"7px 12px" }} onClick={fetchAll}>🔄 Refresh</button>
+    </div>
+    {knockoutMatches.length === 0 ? (
+      <div style={{ ...S.card, padding:"40px 24px", textAlign:"center" }}>
+        <div style={{ fontSize:44, marginBottom:12 }}>🏆</div>
+        <div style={{ fontWeight:600, marginBottom:8, fontSize:16 }}>Knockout stage not started yet</div>
+        <div style={{ color:"#6b9aad", fontSize:14 }}>The bracket will appear once the group stage is complete</div>
+      </div>
+    ) : (
+      <div style={{ overflowX:"auto", paddingBottom:16 }}>
+        <div style={{ display:"flex", gap:0, minWidth:600 }}>
+          {knockoutRounds.map(({ key, label }, roundIndex) => {
+            const roundMatches = knockoutMatches.filter(m => m.stage === key);
+            if (!roundMatches.length) return null;
+            const isFinal = key === "FINAL";
+            const isThird = key === "THIRD_PLACE";
+            return (
+              <div key={key} style={{ flex:1, minWidth:160 }}>
+                {/* Round header */}
+                <div style={{ textAlign:"center", fontSize:11, fontWeight:700, color:"#6b9aad", textTransform:"uppercase", letterSpacing:"0.08em", padding:"0 8px 14px", borderBottom:"1px solid rgba(255,255,255,0.08)", marginBottom:14 }}>
+                  {label}
                 </div>
-              );
-            })}
-          </div>
-        )}
+                {/* Matches */}
+                <div style={{ display:"flex", flexDirection:"column", justifyContent:"space-around", height: isThird||isFinal ? "auto" : `${roundMatches.length * 120}px`, gap: isFinal||isThird ? 12 : 0, padding:"0 8px" }}>
+                  {roundMatches.map((m, mi) => {
+                    const isLive = ["IN_PLAY","PAUSED","HALFTIME"].includes(m.status);
+                    const isDone = m.status === "FINISHED";
+                    const homeOwners = participants.filter(p => p.teams.some(t => m.homeTeam?.name?.includes(t) || t.includes(m.homeTeam?.name || "")));
+                    const awayOwners = participants.filter(p => p.teams.some(t => m.awayTeam?.name?.includes(t) || t.includes(m.awayTeam?.name || "")));
+                    const kickoff = m.utcDate ? new Date(m.utcDate).toLocaleDateString("en-GB",{day:"numeric",month:"short"}) + ", " + new Date(m.utcDate).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}) : "";
+                    const homeScore = m.score?.fullTime?.home;
+                    const awayScore = m.score?.fullTime?.away;
+                    const homeWon = isDone && homeScore !== null && awayScore !== null && homeScore > awayScore;
+                    const awayWon = isDone && homeScore !== null && awayScore !== null && awayScore > homeScore;
+                    return (
+                      <div key={m.id} style={{ position:"relative", marginBottom: isFinal||isThird ? 0 : `${100 / roundMatches.length}%` }}>
+                        {/* Connector lines */}
+                        {!isFinal && !isThird && (
+                          <div style={{ position:"absolute", right:-8, top:"50%", width:8, height:1, background:"rgba(255,255,255,0.15)" }} />
+                        )}
+                        {/* Match card */}
+                        <div style={{
+                          background: isLive ? "rgba(239,68,68,0.08)" : "rgba(255,255,255,0.04)",
+                          border: isLive ? "1px solid rgba(239,68,68,0.4)" : "1px solid rgba(255,255,255,0.1)",
+                          borderRadius:10,
+                          overflow:"hidden",
+                          marginBottom: isFinal||isThird ? 0 : 8,
+                        }}>
+                          {/* Kickoff time */}
+                          <div style={{ padding:"5px 10px 0", fontSize:10, color: isLive ? "#ef4444" : "#6b9aad", fontWeight:600 }}>
+                            {isLive && <span className="live-pulse" style={{ marginRight:4 }} />}
+                            {isLive ? `${m.minute ? `${m.minute}'` : ""} LIVE` : kickoff}
+                          </div>
+                          {/* Home team */}
+                          <div style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 10px 3px", borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
+                            <span style={{ fontSize:14 }}>{getFlag(m.homeTeam?.name)}</span>
+                            <div style={{ flex:1, minWidth:0 }}>
+                              <div style={{ fontSize:12, fontWeight: homeWon ? 700 : 400, color: homeWon ? "#00d46a" : m.homeTeam?.name ? "#e8f4f8" : "#4a6a7a", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                                {m.homeTeam?.name || "TBD"}
+                              </div>
+                              {homeOwners.length > 0 && (
+                                <div style={{ display:"flex", gap:2, marginTop:2 }}>
+                                  {homeOwners.map(o=><span key={o.id} style={{ background:o.color, color:"#fff", fontSize:8, fontWeight:700, padding:"1px 4px", borderRadius:99 }}>{getInitials(o.name)}</span>)}
+                                </div>
+                              )}
+                            </div>
+                            {(isLive||isDone) && homeScore !== null && (
+                              <span style={{ fontSize:14, fontWeight:800, color: homeWon ? "#00d46a" : "#6b9aad", flexShrink:0 }}>{homeScore}</span>
+                            )}
+                          </div>
+                          {/* Away team */}
+                          <div style={{ display:"flex", alignItems:"center", gap:6, padding:"3px 10px 6px" }}>
+                            <span style={{ fontSize:14 }}>{getFlag(m.awayTeam?.name)}</span>
+                            <div style={{ flex:1, minWidth:0 }}>
+                              <div style={{ fontSize:12, fontWeight: awayWon ? 700 : 400, color: awayWon ? "#00d46a" : m.awayTeam?.name ? "#e8f4f8" : "#4a6a7a", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                                {m.awayTeam?.name || "TBD"}
+                              </div>
+                              {awayOwners.length > 0 && (
+                                <div style={{ display:"flex", gap:2, marginTop:2 }}>
+                                  {awayOwners.map(o=><span key={o.id} style={{ background:o.color, color:"#fff", fontSize:8, fontWeight:700, padding:"1px 4px", borderRadius:99 }}>{getInitials(o.name)}</span>)}
+                                </div>
+                              )}
+                            </div>
+                            {(isLive||isDone) && awayScore !== null && (
+                              <span style={{ fontSize:14, fontWeight:800, color: awayWon ? "#00d46a" : "#6b9aad", flexShrink:0 }}>{awayScore}</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    )}
+  </div>
+)}
 
         {screen === "register" && (
           <div style={{ ...S.card, padding:"24px 20px" }}>
