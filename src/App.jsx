@@ -367,7 +367,43 @@ export default function App() {
         input::placeholder { color:#4a6a7a; }
       `}</style>
 
-      <div style={{ position:"fixed", inset:0, opacity:0.035, pointerEvents:"none", backgroundImage:"repeating-linear-gradient(0deg,transparent,transparent 40px,#00d46a 40px,#00d46a 41px)", zIndex:0 }} />
+      <div style={{ position:"fixed", inset:0, pointerEvents:"none", zIndex:0, overflow:"hidden" }}>
+  <svg width="100%" height="100%" viewBox="0 0 400 600" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" style={{ opacity:0.06 }}>
+    {/* Pitch outline */}
+    <rect x="20" y="20" width="360" height="560" fill="none" stroke="#00d46a" strokeWidth="2"/>
+    {/* Halfway line */}
+    <line x1="20" y1="300" x2="380" y2="300" stroke="#00d46a" strokeWidth="1.5"/>
+    {/* Centre circle */}
+    <circle cx="200" cy="300" r="50" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
+    {/* Centre spot */}
+    <circle cx="200" cy="300" r="3" fill="#00d46a"/>
+    {/* Top penalty box */}
+    <rect x="90" y="20" width="220" height="80" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
+    {/* Top six yard box */}
+    <rect x="140" y="20" width="120" height="30" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
+    {/* Top penalty spot */}
+    <circle cx="200" cy="80" r="2.5" fill="#00d46a"/>
+    {/* Top penalty arc */}
+    <path d="M 155 100 A 50 50 0 0 1 245 100" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
+    {/* Bottom penalty box */}
+    <rect x="90" y="500" width="220" height="80" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
+    {/* Bottom six yard box */}
+    <rect x="140" y="550" width="120" height="30" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
+    {/* Bottom penalty spot */}
+    <circle cx="200" cy="520" r="2.5" fill="#00d46a"/>
+    {/* Bottom penalty arc */}
+    <path d="M 155 500 A 50 50 0 0 0 245 500" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
+    {/* Corner arcs */}
+    <path d="M 20 40 A 20 20 0 0 1 40 20" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
+    <path d="M 360 20 A 20 20 0 0 1 380 40" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
+    <path d="M 20 560 A 20 20 0 0 0 40 580" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
+    <path d="M 380 560 A 20 20 0 0 1 360 580" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
+    {/* Goal top */}
+    <rect x="160" y="8" width="80" height="14" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
+    {/* Goal bottom */}
+    <rect x="160" y="578" width="80" height="14" fill="none" stroke="#00d46a" strokeWidth="1.5"/>
+  </svg>
+</div>
 
       {confettiTrigger > 0 && (
         <div key={confettiTrigger} style={{ position:"fixed", inset:0, pointerEvents:"none", zIndex:999, overflow:"hidden" }}>
