@@ -767,7 +767,9 @@ export default function App() {
                   📢 {adminSettings.homeMessage}
                 </div>
               )}
-              <button style={S.btn} onClick={()=>setScreen("register")}>Join the Sweepstake →</button>
+              {adminSettings.allowJoining && adminSettings.showJoin && (
+  <button style={S.btn} onClick={()=>setScreen("register")}>Join the Sweepstake →</button>
+)}
               {(()=>{
                 const total=104;
                 const played=fixtures.filter(m=>m.status==="FINISHED").length;
