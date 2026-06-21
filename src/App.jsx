@@ -105,9 +105,8 @@ const Toggle = ({ value, onChange }) => (
 const CARD_W = 160;
 const CARD_H = 72;
 const COL_GAP = 40;
-const ROUND_KEYS = ["ROUND_OF_32","ROUND_OF_16","QUARTER_FINALS","SEMI_FINALS","FINAL"];
-const ROUND_LABELS = { ROUND_OF_32:"Round of 32", ROUND_OF_16:"Round of 16", QUARTER_FINALS:"Quarter Finals", SEMI_FINALS:"Semi Finals", FINAL:"Final" };
-
+const ROUND_KEYS = ["LAST_32","LAST_16","QUARTER_FINALS","SEMI_FINALS","THIRD_PLACE","FINAL"];
+const ROUND_LABELS = { LAST_32:"Round of 32", LAST_16:"Round of 16", QUARTER_FINALS:"Quarter Finals", SEMI_FINALS:"Semi Finals", THIRD_PLACE:"3rd Place", FINAL:"Final" };
 export default function App() {
   const [screen, setScreen] = useState("home");
   const [participants, setParticipants] = useState([]);
@@ -227,8 +226,6 @@ export default function App() {
           ...all.filter(m => m.status === "FINISHED").slice(-15),
         ]);
         setKnockoutMatches(all.filter(m => m.stage && !m.stage.includes("GROUP")));
-console.log("ALL STAGES:", [...new Set(all.filter(m=>m.stage).map(m=>m.stage))]);
-console.log("KNOCKOUT MATCHES:", all.filter(m => m.stage && !m.stage.includes("GROUP")).length);
       }
       setApiError(false);
       setLastUpdated(new Date().toLocaleTimeString("en-GB"));
@@ -1193,15 +1190,15 @@ console.log("KNOCKOUT MATCHES:", all.filter(m => m.stage && !m.stage.includes("G
         )}
 
         {screen === "knockout" && (
-          <div>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18 }}>
-              <h2 style={{ fontSize:19, fontWeight:700 }}>🏆 Knockout</h2>
-              <button className="nb" style={{ fontSize:12, padding:"7px 12px" }} onClick={fetchAll}>🔄 Refresh</button>
-            </div>
-            <div style={{ fontSize:11, color:"#6b9aad", marginBottom:14 }}>← Scroll sideways to see all rounds →</div>
-            <BracketView />
-          </div>
-        )}
+  <div style={{ margin:"0 -16px" }}>
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18, padding:"0 16px" }}>
+      <h2 style={{ fontSize:19, fontWeight:700 }}>🏆 Knockout</h2>
+      <button className="nb" style={{ fontSize:12, padding:"7px 12px" }} onClick={fetchAll}>🔄 Refresh</button>
+    </div>
+    <div style={{ fontSize:11, color:"#6b9aad", marginBottom:14, padding:"0 16px" }}>← Scroll sideways to see all rounds →</div>
+    <BracketView />
+  </div>
+)}
 
         {screen === "register" && (
           <div style={{ ...S.card, padding:"24px 20px" }}>
