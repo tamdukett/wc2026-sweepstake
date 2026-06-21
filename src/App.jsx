@@ -227,6 +227,8 @@ export default function App() {
           ...all.filter(m => m.status === "FINISHED").slice(-15),
         ]);
         setKnockoutMatches(all.filter(m => m.stage && !m.stage.includes("GROUP")));
+console.log("ALL STAGES:", [...new Set(all.filter(m=>m.stage).map(m=>m.stage))]);
+console.log("KNOCKOUT MATCHES:", all.filter(m => m.stage && !m.stage.includes("GROUP")).length);
       }
       setApiError(false);
       setLastUpdated(new Date().toLocaleTimeString("en-GB"));
