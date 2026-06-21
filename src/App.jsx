@@ -457,8 +457,10 @@ export default function App() {
     // Compute vertical centre of each match card per round
     const matchCentres = {};
     presentRounds.forEach((key, ri) => {
-      const matches = knockoutMatches.filter(m => m.stage === key);
-      const count = matches.length;
+      const matches = knockoutMatches
+  .filter(m => m.stage === key)
+  .sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate));
+  const count = matches.length;
       const pitch = totalHeight / count;
       matchCentres[key] = matches.map((_, mi) => pitch * mi + pitch / 2);
     });
