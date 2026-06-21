@@ -101,6 +101,13 @@ const Toggle = ({ value, onChange }) => (
   </div>
 );
 
+// Knockout bracket constants
+const CARD_W = 160;
+const CARD_H = 72;
+const COL_GAP = 40;
+const ROUND_KEYS = ["ROUND_OF_32","ROUND_OF_16","QUARTER_FINALS","SEMI_FINALS","FINAL"];
+const ROUND_LABELS = { ROUND_OF_32:"Round of 32", ROUND_OF_16:"Round of 16", QUARTER_FINALS:"Quarter Finals", SEMI_FINALS:"Semi Finals", FINAL:"Final" };
+
 export default function App() {
   const [screen, setScreen] = useState("home");
   const [participants, setParticipants] = useState([]);
@@ -127,7 +134,6 @@ export default function App() {
   const [h2hA, setH2hA] = useState(null);
   const [h2hB, setH2hB] = useState(null);
   const [previousEnriched, setPreviousEnriched] = useState([]);
-  const [bracketPage, setBracketPage] = useState(0);
   const [adminSettings, setAdminSettings] = useState(DEFAULT_SETTINGS);
   const liveTimer = useRef(null);
 
@@ -359,22 +365,6 @@ export default function App() {
     };
   };
 
-  const knockoutRounds = [
-    { key:"ROUND_OF_32", label:"Round of 32" },
-    { key:"ROUND_OF_16", label:"Round of 16" },
-    { key:"QUARTER_FINALS", label:"Quarters" },
-    { key:"SEMI_FINALS", label:"Semis" },
-    { key:"THIRD_PLACE", label:"3rd Place" },
-    { key:"FINAL", label:"Final" },
-  ];
-
-  // Build bracket pages — 2 rounds per page
-  const activeRounds = knockoutRounds.filter(r => knockoutMatches.some(m => m.stage === r.key));
-  const bracketPages = [];
-  for (let i = 0; i < activeRounds.length; i += 2) {
-    bracketPages.push(activeRounds.slice(i, i + 2));
-  }
-
   const visibleTeams = WC_TEAMS.filter(t => {
     const ok = !takenTeams.includes(t.name) || selectedTeams.includes(t.name);
     const grp = groupFilter === "ALL" || t.group === groupFilter;
@@ -429,61 +419,164 @@ export default function App() {
     );
   };
 
-  const KnockoutMatchCard = ({ m }) => {
-    const isLive = ["IN_PLAY","PAUSED","HALFTIME"].includes(m.status);
-    const isDone = m.status === "FINISHED";
-    const homeOwners = participants.filter(p => p.teams.some(t => m.homeTeam?.name?.includes(t) || t.includes(m.homeTeam?.name || "")));
-    const awayOwners = participants.filter(p => p.teams.some(t => m.awayTeam?.name?.includes(t) || t.includes(m.awayTeam?.name || "")));
-    const kickoff = m.utcDate ? new Date(m.utcDate).toLocaleDateString("en-GB",{day:"numeric",month:"short"}) + " " + new Date(m.utcDate).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}) : "";
-    const homeScore = m.score?.fullTime?.home;
-    const awayScore = m.score?.fullTime?.away;
-    const homeWon = isDone && homeScore > awayScore;
-    const awayWon = isDone && awayScore > homeScore;
-    const banner = getOwnerBanner(homeOwners, awayOwners);
-    return (
-      <div style={{
-        background: isLive ? "rgba(239,68,68,0.08)" : "rgba(255,255,255,0.04)",
-        border: isLive ? "1px solid rgba(239,68,68,0.4)" : banner ? "1px solid rgba(0,212,106,0.3)" : "1px solid rgba(255,255,255,0.1)",
-        borderRadius:12, overflow:"hidden", marginBottom:8,
-      }}>
-        <div style={{ padding:"6px 10px", borderBottom:"1px solid rgba(255,255,255,0.06)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-          <span style={{ fontSize:10, color:isLive?"#ef4444":"#6b9aad", fontWeight:600, display:"flex", alignItems:"center", gap:4 }}>
-            {isLive && <span className="live-pulse" />}
-            {isLive ? `${m.minute?`${m.minute}'`:""}LIVE` : kickoff}
+  // ── Bracket renderer ──────────────────────────────────────────
+  const BracketView = () => {
+    // Which rounds exist in the data
+    const presentRounds = ROUND_KEYS.filter(k => knockoutMatches.some(m => m.stage === k));
+    if (presentRounds.length === 0) return (
+      <div style={{ ...S.card, padding:"40px 24px", textAlign:"center" }}>
+        <div style={{ fontSize:44, marginBottom:12 }}>🏆</div>
+        <div style={{ fontWeight:600, marginBottom:8 }}>Knockout stage not started yet</div>
+        <div style={{ color:"#6b9aad", fontSize:14 }}>Check back once the group stage is complete</div>
+      </div>
+    );
+
+    const numRounds = presentRounds.length;
+    // Max matches in first round
+    const firstRoundCount = knockoutMatches.filter(m => m.stage === presentRounds[0]).length;
+    // Card vertical pitch: doubles each round
+    const basePitch = CARD_H + 12; // card height + gap
+    const totalHeight = firstRoundCount * basePitch;
+    const totalWidth = numRounds * (CARD_W + COL_GAP);
+
+    // Compute vertical centre of each match card per round
+    const matchCentres = {};
+    presentRounds.forEach((key, ri) => {
+      const matches = knockoutMatches.filter(m => m.stage === key);
+      const count = matches.length;
+      const pitch = totalHeight / count;
+      matchCentres[key] = matches.map((_, mi) => pitch * mi + pitch / 2);
+    });
+
+    const renderTeamRow = (team, score, won, isLive, isDone) => {
+      const name = team?.name;
+      const flag = name ? getFlag(name) : null;
+      const owners = name ? participants.filter(p => p.teams.some(t => name.includes(t) || t.includes(name))) : [];
+      return (
+        <div style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 8px", flex:1 }}>
+          <span style={{ fontSize:13, flexShrink:0, width:18 }}>{flag || "🏳️"}</span>
+          <span style={{
+            fontSize:11, fontWeight:won?700:400,
+            color: won ? "#00d46a" : name ? "#e8f4f8" : "#4a6a7a",
+            flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"
+          }}>
+            {name || "TBD"}
           </span>
-          {banner && <span style={{ fontSize:9, color:"#00d46a", fontWeight:700 }}>⭐</span>}
-        </div>
-        <div style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 10px", borderBottom:"1px solid rgba(255,255,255,0.05)", background:homeWon?"rgba(0,212,106,0.05)":"transparent" }}>
-          <span style={{ fontSize:16, flexShrink:0 }}>{m.homeTeam?.name ? getFlag(m.homeTeam.name) : "🏳️"}</span>
-          <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontSize:12, fontWeight:homeWon?700:500, color:homeWon?"#00d46a":m.homeTeam?.name?"#e8f4f8":"#4a6a7a", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-              {m.homeTeam?.name || "TBD"}
+          {owners.length > 0 && (
+            <div style={{ display:"flex", gap:2 }}>
+              {owners.slice(0,2).map(o=>(
+                <span key={o.id} style={{ background:o.color, color:"#fff", fontSize:7, fontWeight:700, padding:"1px 3px", borderRadius:99, flexShrink:0 }}>
+                  {getInitials(o.name)}
+                </span>
+              ))}
             </div>
-            {homeOwners.length > 0 && (
-              <div style={{ display:"flex", gap:2, marginTop:2 }}>
-                {homeOwners.map(o=><span key={o.id} style={{ background:o.color, color:"#fff", fontSize:7, fontWeight:700, padding:"1px 3px", borderRadius:99 }}>{getInitials(o.name)}</span>)}
-              </div>
-            )}
-          </div>
-          {(isLive||isDone) && homeScore !== null && (
-            <span style={{ fontSize:15, fontWeight:800, color:homeWon?"#00d46a":"#6b9aad", flexShrink:0 }}>{homeScore}</span>
+          )}
+          {(isLive||isDone) && score !== null && score !== undefined && (
+            <span style={{ fontSize:13, fontWeight:800, color:won?"#00d46a":"#6b9aad", flexShrink:0, minWidth:14, textAlign:"right" }}>
+              {score}
+            </span>
           )}
         </div>
-        <div style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 10px", background:awayWon?"rgba(0,212,106,0.05)":"transparent" }}>
-          <span style={{ fontSize:16, flexShrink:0 }}>{m.awayTeam?.name ? getFlag(m.awayTeam.name) : "🏳️"}</span>
-          <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontSize:12, fontWeight:awayWon?700:500, color:awayWon?"#00d46a":m.awayTeam?.name?"#e8f4f8":"#4a6a7a", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-              {m.awayTeam?.name || "TBD"}
-            </div>
-            {awayOwners.length > 0 && (
-              <div style={{ display:"flex", gap:2, marginTop:2 }}>
-                {awayOwners.map(o=><span key={o.id} style={{ background:o.color, color:"#fff", fontSize:7, fontWeight:700, padding:"1px 3px", borderRadius:99 }}>{getInitials(o.name)}</span>)}
+      );
+    };
+
+    return (
+      <div style={{ overflowX:"auto", overflowY:"auto", WebkitOverflowScrolling:"touch", paddingBottom:8 }}>
+        <div style={{ position:"relative", width:totalWidth, minHeight:totalHeight + 40 }}>
+
+          {/* SVG connector lines */}
+          <svg style={{ position:"absolute", top:0, left:0, width:totalWidth, height:totalHeight+40, pointerEvents:"none", overflow:"visible" }}>
+            {presentRounds.map((key, ri) => {
+              if (ri === presentRounds.length - 1) return null;
+              const nextKey = presentRounds[ri + 1];
+              const centres = matchCentres[key];
+              const nextCentres = matchCentres[nextKey];
+              const x1 = ri * (CARD_W + COL_GAP) + CARD_W + 20;
+              const x2 = (ri + 1) * (CARD_W + COL_GAP) + 20;
+              const lines = [];
+              for (let i = 0; i < centres.length; i += 2) {
+                const cA = centres[i] + 20;
+                const cB = centres[i+1] !== undefined ? centres[i+1] + 20 : cA;
+                const cNext = nextCentres[Math.floor(i/2)] + 20;
+                const mid = (cA + cB) / 2;
+                lines.push(
+                  <g key={i}>
+                    <line x1={x1} y1={cA} x2={x1+10} y2={cA} stroke="rgba(100,160,200,0.3)" strokeWidth="1"/>
+                    <line x1={x1+10} y1={cA} x2={x1+10} y2={mid} stroke="rgba(100,160,200,0.3)" strokeWidth="1"/>
+                    {centres[i+1] !== undefined && (
+                      <>
+                        <line x1={x1} y1={cB} x2={x1+10} y2={cB} stroke="rgba(100,160,200,0.3)" strokeWidth="1"/>
+                        <line x1={x1+10} y1={cB} x2={x1+10} y2={mid} stroke="rgba(100,160,200,0.3)" strokeWidth="1"/>
+                      </>
+                    )}
+                    <line x1={x1+10} y1={mid} x2={x2} y2={cNext} stroke="rgba(100,160,200,0.3)" strokeWidth="1"/>
+                  </g>
+                );
+              }
+              return lines;
+            })}
+          </svg>
+
+          {/* Round columns */}
+          {presentRounds.map((key, ri) => {
+            const matches = knockoutMatches.filter(m => m.stage === key);
+            const count = matches.length;
+            const pitch = totalHeight / count;
+            const colX = ri * (CARD_W + COL_GAP);
+
+            return (
+              <div key={key} style={{ position:"absolute", left:colX, top:0, width:CARD_W }}>
+                {/* Round label */}
+                <div style={{ textAlign:"center", fontSize:9, fontWeight:700, color:"#6b9aad", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6, height:20, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  {ROUND_LABELS[key]}
+                </div>
+                {matches.map((m, mi) => {
+                  const isLive = ["IN_PLAY","PAUSED","HALFTIME"].includes(m.status);
+                  const isDone = m.status === "FINISHED";
+                  const homeScore = m.score?.fullTime?.home;
+                  const awayScore = m.score?.fullTime?.away;
+                  const homeWon = isDone && homeScore > awayScore;
+                  const awayWon = isDone && awayScore > homeScore;
+                  const cardTop = pitch * mi + pitch/2 - CARD_H/2 + 20;
+                  const kickoff = m.utcDate
+                    ? new Date(m.utcDate).toLocaleDateString("en-GB",{day:"numeric",month:"short"}) + " " + new Date(m.utcDate).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})
+                    : "";
+
+                  return (
+                    <div key={m.id} style={{
+                      position:"absolute",
+                      top:cardTop,
+                      left:0,
+                      width:CARD_W,
+                      height:CARD_H,
+                      background: isLive ? "rgba(239,68,68,0.1)" : "rgba(255,255,255,0.05)",
+                      border: isLive ? "1px solid rgba(239,68,68,0.5)" : "1px solid rgba(255,255,255,0.12)",
+                      borderRadius:8,
+                      overflow:"hidden",
+                      display:"flex",
+                      flexDirection:"column",
+                    }}>
+                      {/* Time strip */}
+                      <div style={{ padding:"3px 8px", background:"rgba(0,0,0,0.2)", display:"flex", alignItems:"center", gap:4 }}>
+                        {isLive && <span className="live-pulse" style={{ width:5, height:5 }} />}
+                        <span style={{ fontSize:9, color:isLive?"#ef4444":"#6b9aad", fontWeight:600, overflow:"hidden", whiteSpace:"nowrap", textOverflow:"ellipsis" }}>
+                          {isLive ? `${m.minute?`${m.minute}'`:""}LIVE` : kickoff}
+                        </span>
+                      </div>
+                      {/* Home */}
+                      <div style={{ flex:1, borderBottom:"1px solid rgba(255,255,255,0.07)", display:"flex", alignItems:"center", background:homeWon?"rgba(0,212,106,0.06)":"transparent" }}>
+                        {renderTeamRow(m.homeTeam, homeScore, homeWon, isLive, isDone)}
+                      </div>
+                      {/* Away */}
+                      <div style={{ flex:1, display:"flex", alignItems:"center", background:awayWon?"rgba(0,212,106,0.06)":"transparent" }}>
+                        {renderTeamRow(m.awayTeam, awayScore, awayWon, isLive, isDone)}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            )}
-          </div>
-          {(isLive||isDone) && awayScore !== null && (
-            <span style={{ fontSize:15, fontWeight:800, color:awayWon?"#00d46a":"#6b9aad", flexShrink:0 }}>{awayScore}</span>
-          )}
+            );
+          })}
         </div>
       </div>
     );
@@ -1103,58 +1196,8 @@ export default function App() {
               <h2 style={{ fontSize:19, fontWeight:700 }}>🏆 Knockout</h2>
               <button className="nb" style={{ fontSize:12, padding:"7px 12px" }} onClick={fetchAll}>🔄 Refresh</button>
             </div>
-            {knockoutMatches.length === 0 ? (
-              <div style={{ ...S.card, padding:"40px 24px", textAlign:"center" }}>
-                <div style={{ fontSize:44, marginBottom:12 }}>🏆</div>
-                <div style={{ fontWeight:600, marginBottom:8, fontSize:16 }}>Knockout stage not started yet</div>
-                <div style={{ color:"#6b9aad", fontSize:14 }}>The bracket will appear once the group stage is complete</div>
-              </div>
-            ) : (
-              <div>
-                {/* Navigation */}
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16, gap:8 }}>
-                  <button
-                    onClick={()=>setBracketPage(p=>Math.max(0,p-1))}
-                    disabled={bracketPage===0}
-                    style={{ background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.12)", color:bracketPage===0?"#3a5a6a":"#e8f4f8", borderRadius:8, padding:"8px 16px", cursor:bracketPage===0?"not-allowed":"pointer", fontSize:16, fontWeight:700, flexShrink:0 }}>
-                    ←
-                  </button>
-                  <div style={{ display:"flex", gap:4, flexWrap:"wrap", justifyContent:"center", flex:1 }}>
-                    {bracketPages.map((page, pi) =>
-                      page.map(r => (
-                        <button
-                          key={r.key}
-                          onClick={()=>setBracketPage(pi)}
-                          style={{ fontSize:10, fontWeight:700, padding:"5px 10px", borderRadius:20, cursor:"pointer", border:"none", background:bracketPage===pi?"#00d46a":"rgba(255,255,255,0.08)", color:bracketPage===pi?"#0a1628":"#6b9aad", whiteSpace:"nowrap" }}>
-                          {r.label}
-                        </button>
-                      ))
-                    )}
-                  </div>
-                  <button
-                    onClick={()=>setBracketPage(p=>Math.min(bracketPages.length-1,p+1))}
-                    disabled={bracketPage===bracketPages.length-1}
-                    style={{ background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.12)", color:bracketPage===bracketPages.length-1?"#3a5a6a":"#e8f4f8", borderRadius:8, padding:"8px 16px", cursor:bracketPage===bracketPages.length-1?"not-allowed":"pointer", fontSize:16, fontWeight:700, flexShrink:0 }}>
-                    →
-                  </button>
-                </div>
-
-                {/* Round columns */}
-                <div style={{ display:"flex", gap:10 }}>
-                  {bracketPages[bracketPage]?.map(({ key, label }) => {
-                    const roundMatches = knockoutMatches.filter(m => m.stage === key);
-                    return (
-                      <div key={key} style={{ flex:1, minWidth:0 }}>
-                        <div style={{ textAlign:"center", fontSize:11, fontWeight:700, color:"#00d46a", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10, padding:"6px 0", borderBottom:"1px solid rgba(0,212,106,0.2)" }}>
-                          {label}
-                        </div>
-                        {roundMatches.map(m => <KnockoutMatchCard key={m.id} m={m} />)}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+            <div style={{ fontSize:11, color:"#6b9aad", marginBottom:14 }}>← Scroll sideways to see all rounds →</div>
+            <BracketView />
           </div>
         )}
 
