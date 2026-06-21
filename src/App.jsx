@@ -337,7 +337,23 @@ export default function App() {
     return m.status;
   };
 
-  const getFlag = name => WC_TEAMS.find(t => t.name === name || name?.includes(t.name))?.flag || "🏳️";
+  const getFlag = name => {
+  if (!name) return "🏳️";
+  return WC_TEAMS.find(t =>
+    t.name === name ||
+    name.includes(t.name) ||
+    t.name.includes(name) ||
+    t.name.toLowerCase() === name.toLowerCase() ||
+    // Common API short name mappings
+    (name === "USA" && t.name === "United States") ||
+    (name === "Korea Republic" && t.name === "South Korea") ||
+    (name === "IR Iran" && t.name === "Iran") ||
+    (name === "Côte d'Ivoire" && t.name === "Ivory Coast") ||
+    (name === "Congo DR" && t.name === "Congo DR") ||
+    (name === "Türkiye" && t.name === "Turkey") ||
+    (name === "Cape Verde" && t.name === "Cape Verde Islands")
+  )?.flag || "🏳️";
+};
 
   const getOwnerBanner = (homeOwners, awayOwners) => {
     const names = [...new Set([...homeOwners, ...awayOwners].map(o => o.name))];
@@ -450,7 +466,18 @@ export default function App() {
     const renderTeamRow = (team, score, won, isLive, isDone) => {
       const name = team?.name;
       const flag = name ? getFlag(name) : null;
-      const owners = name ? participants.filter(p => p.teams.some(t => name.includes(t) || t.includes(name))) : [];
+      const nameMap = {
+  "USA": "United States",
+  "Korea Republic": "South Korea",
+  "IR Iran": "Iran",
+  "Côte d'Ivoire": "Ivory Coast",
+  "Türkiye": "Turkey",
+  "Cape Verde": "Cape Verde Islands",
+};
+const resolvedName = nameMap[name] || name;
+const owners = name ? participants.filter(p => p.teams.some(t =>
+  resolvedName.includes(t) || t.includes(resolvedName) || name.includes(t) || t.includes(name)
+)) : [];
       return (
         <div style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 8px", flex:1 }}>
           <span style={{ fontSize:13, flexShrink:0, width:18 }}>{flag || "🏳️"}</span>
