@@ -7,6 +7,7 @@ const supabase = createClient(
 );
 
 const WC_ID = 2000;
+const IS_DEV = import.meta.env.DEV;
 
 const WC_TEAMS = [
   { name: "Mexico", flag: "🇲🇽", group: "A" },
@@ -92,6 +93,18 @@ const DEFAULT_SETTINGS = {
   customRoasts: "",
 };
 
+const ROUND_KEYS = ["LAST_32","LAST_16","QUARTER_FINALS","SEMI_FINALS","FINAL"];
+const ROUND_LABELS = {
+  LAST_32:"Round of 32",
+  LAST_16:"Round of 16",
+  QUARTER_FINALS:"Quarter Finals",
+  SEMI_FINALS:"Semi Finals",
+  FINAL:"Final"
+};
+const CARD_W = 160;
+const CARD_H = 72;
+const COL_GAP = 40;
+
 const getInitials = n => n.split(" ").map(w => w[0]).join("").toUpperCase().slice(0,2);
 const fc = r => r === "W" ? "#00d46a" : r === "D" ? "#f59e0b" : "#ef4444";
 
@@ -101,12 +114,6 @@ const Toggle = ({ value, onChange }) => (
   </div>
 );
 
-// Knockout bracket constants
-const CARD_W = 160;
-const CARD_H = 72;
-const COL_GAP = 40;
-const ROUND_KEYS = ["LAST_32","LAST_16","QUARTER_FINALS","SEMI_FINALS","FINAL"];
-const ROUND_LABELS = { LAST_32:"Round of 32", LAST_16:"Round of 16", QUARTER_FINALS:"Quarter Finals", SEMI_FINALS:"Semi Finals", FINAL:"Final" };
 export default function App() {
   const [screen, setScreen] = useState("home");
   const [participants, setParticipants] = useState([]);
@@ -134,6 +141,7 @@ export default function App() {
   const [h2hB, setH2hB] = useState(null);
   const [previousEnriched, setPreviousEnriched] = useState([]);
   const [adminSettings, setAdminSettings] = useState(DEFAULT_SETTINGS);
+  const [tournamentWinner, setTournamentWinner] = useState(null);
   const liveTimer = useRef(null);
 
   const loadParticipants = useCallback(async () => {
@@ -307,6 +315,40 @@ export default function App() {
     setPreviousEnriched(enriched);
   }, [standings]);
 
+  // Detect tournament winner
+  useEffect(() => {
+    if (knockoutMatches.length === 0) return;
+    const final = knockoutMatches.find(m => m.stage === "FINAL" && m.status === "FINISHED");
+    if (!final) return;
+    const homeScore = final.score?.fullTime?.home ?? 0;
+    const awayScore = final.score?.fullTime?.away ?? 0;
+    const winningTeam = homeScore > awayScore ? final.homeTeam : final.awayTeam;
+    if (!winningTeam?.name) return;
+    const owner = enriched.find(p => p.teams.some(t =>
+      t === winningTeam.name ||
+      winningTeam.name.includes(t) ||
+      t.includes(winningTeam.name)
+    ));
+    setTournamentWinner({
+      team: winningTeam.name,
+      flag: getFlag(winningTeam.name),
+      owner: owner?.name || null,
+      ownerColor: owner?.color || "#00d46a",
+    });
+  }, [knockoutMatches, enriched]);
+
+  const triggerTestWinner = () => {
+    const testOwner = enriched[0];
+    const testTeam = testOwner?.teams?.[0] || "England";
+    const testTeamInfo = WC_TEAMS.find(t => t.name === testTeam);
+    setTournamentWinner({
+      team: testTeam,
+      flag: testTeamInfo?.flag || "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
+      owner: testOwner?.name || "Tam",
+      ownerColor: testOwner?.color || "#3a86ff",
+    });
+  };
+
   const filtered = enriched.filter(p =>
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.teams.some(t => t.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -338,22 +380,20 @@ export default function App() {
   };
 
   const getFlag = name => {
-  if (!name) return "🏳️";
-  return WC_TEAMS.find(t =>
-    t.name === name ||
-    name.includes(t.name) ||
-    t.name.includes(name) ||
-    t.name.toLowerCase() === name.toLowerCase() ||
-    // Common API short name mappings
-    (name === "USA" && t.name === "United States") ||
-    (name === "Korea Republic" && t.name === "South Korea") ||
-    (name === "IR Iran" && t.name === "Iran") ||
-    (name === "Côte d'Ivoire" && t.name === "Ivory Coast") ||
-    (name === "Congo DR" && t.name === "Congo DR") ||
-    (name === "Türkiye" && t.name === "Turkey") ||
-    (name === "Cape Verde" && t.name === "Cape Verde Islands")
-  )?.flag || "🏳️";
-};
+    if (!name) return "🏳️";
+    return WC_TEAMS.find(t =>
+      t.name === name ||
+      name.includes(t.name) ||
+      t.name.includes(name) ||
+      t.name.toLowerCase() === name.toLowerCase() ||
+      (name === "USA" && t.name === "United States") ||
+      (name === "Korea Republic" && t.name === "South Korea") ||
+      (name === "IR Iran" && t.name === "Iran") ||
+      (name === "Côte d'Ivoire" && t.name === "Ivory Coast") ||
+      (name === "Türkiye" && t.name === "Turkey") ||
+      (name === "Cape Verde" && t.name === "Cape Verde Islands")
+    )?.flag || "🏳️";
+  };
 
   const getOwnerBanner = (homeOwners, awayOwners) => {
     const names = [...new Set([...homeOwners, ...awayOwners].map(o => o.name))];
@@ -434,130 +474,116 @@ export default function App() {
     );
   };
 
-  // ── Bracket renderer ──────────────────────────────────────────
   const BracketView = () => {
-    // Which rounds exist in the data
     const presentRounds = ROUND_KEYS.filter(k => knockoutMatches.some(m => m.stage === k));
     if (presentRounds.length === 0) return (
-      <div style={{ ...S.card, padding:"40px 24px", textAlign:"center" }}>
+      <div style={{ ...S.card, padding:"40px 24px", textAlign:"center", margin:"0 16px" }}>
         <div style={{ fontSize:44, marginBottom:12 }}>🏆</div>
         <div style={{ fontWeight:600, marginBottom:8 }}>Knockout stage not started yet</div>
         <div style={{ color:"#6b9aad", fontSize:14 }}>Check back once the group stage is complete</div>
       </div>
     );
 
-    const numRounds = presentRounds.length;
-    // Max matches in first round
     const firstRoundCount = knockoutMatches.filter(m => m.stage === presentRounds[0]).length;
-    // Card vertical pitch: doubles each round
-    const basePitch = CARD_H + 12; // card height + gap
+    const basePitch = CARD_H + 16;
     const totalHeight = firstRoundCount * basePitch;
-    const totalWidth = numRounds * (CARD_W + COL_GAP);
+    const totalWidth = presentRounds.length * (CARD_W + COL_GAP) + 16;
 
-    // Compute vertical centre of each match card per round
     const matchCentres = {};
-    presentRounds.forEach((key, ri) => {
+    presentRounds.forEach((key) => {
       const matches = knockoutMatches
-  .filter(m => m.stage === key)
-  .sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate));
-  const count = matches.length;
+        .filter(m => m.stage === key)
+        .sort((a,b) => new Date(a.utcDate) - new Date(b.utcDate));
+      const count = matches.length;
       const pitch = totalHeight / count;
       matchCentres[key] = matches.map((_, mi) => pitch * mi + pitch / 2);
     });
 
+    const nameMap = {
+      "USA": "United States", "Korea Republic": "South Korea",
+      "IR Iran": "Iran", "Côte d'Ivoire": "Ivory Coast",
+      "Türkiye": "Turkey", "Cape Verde": "Cape Verde Islands",
+    };
+
     const renderTeamRow = (team, score, won, lost, isLive, isDone) => {
-  const name = team?.name;
-  const flag = name ? getFlag(name) : null;
-  const nameMap = {
-    "USA": "United States",
-    "Korea Republic": "South Korea",
-    "IR Iran": "Iran",
-    "Côte d'Ivoire": "Ivory Coast",
-    "Türkiye": "Turkey",
-    "Cape Verde": "Cape Verde Islands",
-  };
-  const resolvedName = nameMap[name] || name;
-  const owners = name ? participants.filter(p => p.teams.some(t =>
-    resolvedName.includes(t) || t.includes(resolvedName) || name.includes(t) || t.includes(name)
-  )) : [];
-  return (
-    <div style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 8px", flex:1, opacity: lost ? 0.45 : 1 }}>
-      <span style={{ fontSize:13, flexShrink:0, width:18 }}>{flag || "🏳️"}</span>
-      <span style={{
-        fontSize:11, fontWeight:won?700:400,
-        color: won ? "#00d46a" : name ? "#e8f4f8" : "#4a6a7a",
-        flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap",
-        textDecoration: lost ? "line-through" : "none",
-      }}>
-        {name || "TBD"}
-      </span>
-      {owners.length > 0 && (
-        <div style={{ display:"flex", gap:2 }}>
-          {owners.slice(0,2).map(o=>(
-            <span key={o.id} style={{ background:o.color, color:"#fff", fontSize:7, fontWeight:700, padding:"1px 3px", borderRadius:99, flexShrink:0 }}>
-              {getInitials(o.name)}
+      const name = team?.name;
+      const flag = name ? getFlag(name) : null;
+      const resolvedName = nameMap[name] || name;
+      const owners = name ? participants.filter(p => p.teams.some(t =>
+        resolvedName?.includes(t) || t.includes(resolvedName||"") || name.includes(t) || t.includes(name)
+      )) : [];
+      return (
+        <div style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 8px", flex:1, opacity:lost?0.4:1 }}>
+          <span style={{ fontSize:13, flexShrink:0, width:18 }}>{flag || "🏳️"}</span>
+          <span style={{
+            fontSize:11, fontWeight:won?700:400,
+            color: won?"#00d46a":name?"#e8f4f8":"#4a6a7a",
+            flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap",
+            textDecoration: lost?"line-through":"none",
+          }}>
+            {name || "TBD"}
+          </span>
+          {owners.length > 0 && (
+            <div style={{ display:"flex", gap:2 }}>
+              {owners.slice(0,2).map(o=>(
+                <span key={o.id} style={{ background:o.color, color:"#fff", fontSize:7, fontWeight:700, padding:"1px 3px", borderRadius:99, flexShrink:0 }}>
+                  {getInitials(o.name)}
+                </span>
+              ))}
+            </div>
+          )}
+          {isDone && won && <span style={{ fontSize:10, flexShrink:0 }}>✅</span>}
+          {isDone && lost && <span style={{ fontSize:10, flexShrink:0 }}>❌</span>}
+          {(isLive||isDone) && score !== null && score !== undefined && (
+            <span style={{ fontSize:13, fontWeight:800, color:won?"#00d46a":"#6b9aad", flexShrink:0, minWidth:14, textAlign:"right" }}>
+              {score}
             </span>
-          ))}
+          )}
         </div>
-      )}
-      {isDone && won && <span style={{ fontSize:10, flexShrink:0 }}>✅</span>}
-      {isDone && lost && <span style={{ fontSize:10, flexShrink:0 }}>❌</span>}
-      {(isLive||isDone) && score !== null && score !== undefined && (
-        <span style={{ fontSize:13, fontWeight:800, color:won?"#00d46a":"#6b9aad", flexShrink:0, minWidth:14, textAlign:"right" }}>
-          {score}
-        </span>
-      )}
-    </div>
-  );
-};
+      );
+    };
 
     return (
-      <div style={{ overflowX:"auto", overflowY:"auto", WebkitOverflowScrolling:"touch", paddingBottom:8 }}>
-        <div style={{ position:"relative", width:totalWidth, minHeight:totalHeight + 40 }}>
-
-          {/* SVG connector lines */}
+      <div style={{ overflowX:"auto", overflowY:"auto", WebkitOverflowScrolling:"touch", paddingBottom:8, paddingLeft:16 }}>
+        <div style={{ position:"relative", width:totalWidth, minHeight:totalHeight+40 }}>
           <svg style={{ position:"absolute", top:0, left:0, width:totalWidth, height:totalHeight+40, pointerEvents:"none", overflow:"visible" }}>
             {presentRounds.map((key, ri) => {
               if (ri === presentRounds.length - 1) return null;
               const nextKey = presentRounds[ri + 1];
-              const centres = matchCentres[key];
-              const nextCentres = matchCentres[nextKey];
-              const x1 = ri * (CARD_W + COL_GAP) + CARD_W + 20;
-              const x2 = (ri + 1) * (CARD_W + COL_GAP) + 20;
-              const lines = [];
-              for (let i = 0; i < centres.length; i += 2) {
-                const cA = centres[i] + 20;
-                const cB = centres[i+1] !== undefined ? centres[i+1] + 20 : cA;
-                const cNext = nextCentres[Math.floor(i/2)] + 20;
-                const mid = (cA + cB) / 2;
-                lines.push(
+              const matches = knockoutMatches.filter(m=>m.stage===key).sort((a,b)=>new Date(a.utcDate)-new Date(b.utcDate));
+              const centres = matches.map((_,mi) => { const pitch=totalHeight/matches.length; return pitch*mi+pitch/2; });
+              const nextMatches = knockoutMatches.filter(m=>m.stage===nextKey).sort((a,b)=>new Date(a.utcDate)-new Date(b.utcDate));
+              const nextCentres = nextMatches.map((_,mi) => { const pitch=totalHeight/nextMatches.length; return pitch*mi+pitch/2; });
+              const x1 = ri*(CARD_W+COL_GAP)+CARD_W+20;
+              const x2 = (ri+1)*(CARD_W+COL_GAP)+20;
+              return centres.map((c, i) => {
+                if (i % 2 !== 0) return null;
+                const cA = c + 20;
+                const cB = (centres[i+1]||c) + 20;
+                const cNext = (nextCentres[Math.floor(i/2)]||c) + 20;
+                const mid = (cA+cB)/2;
+                return (
                   <g key={i}>
                     <line x1={x1} y1={cA} x2={x1+10} y2={cA} stroke="rgba(100,160,200,0.3)" strokeWidth="1"/>
                     <line x1={x1+10} y1={cA} x2={x1+10} y2={mid} stroke="rgba(100,160,200,0.3)" strokeWidth="1"/>
-                    {centres[i+1] !== undefined && (
-                      <>
-                        <line x1={x1} y1={cB} x2={x1+10} y2={cB} stroke="rgba(100,160,200,0.3)" strokeWidth="1"/>
-                        <line x1={x1+10} y1={cB} x2={x1+10} y2={mid} stroke="rgba(100,160,200,0.3)" strokeWidth="1"/>
-                      </>
-                    )}
+                    <line x1={x1} y1={cB} x2={x1+10} y2={cB} stroke="rgba(100,160,200,0.3)" strokeWidth="1"/>
+                    <line x1={x1+10} y1={cB} x2={x1+10} y2={mid} stroke="rgba(100,160,200,0.3)" strokeWidth="1"/>
                     <line x1={x1+10} y1={mid} x2={x2} y2={cNext} stroke="rgba(100,160,200,0.3)" strokeWidth="1"/>
                   </g>
                 );
-              }
-              return lines;
+              });
             })}
           </svg>
 
-          {/* Round columns */}
           {presentRounds.map((key, ri) => {
-            const matches = knockoutMatches.filter(m => m.stage === key);
+            const matches = knockoutMatches
+              .filter(m => m.stage === key)
+              .sort((a,b) => new Date(a.utcDate) - new Date(b.utcDate));
             const count = matches.length;
             const pitch = totalHeight / count;
             const colX = ri * (CARD_W + COL_GAP);
-
             return (
               <div key={key} style={{ position:"absolute", left:colX, top:0, width:CARD_W }}>
-                {/* Round label */}
                 <div style={{ textAlign:"center", fontSize:9, fontWeight:700, color:"#6b9aad", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6, height:20, display:"flex", alignItems:"center", justifyContent:"center" }}>
                   {ROUND_LABELS[key]}
                 </div>
@@ -568,40 +594,31 @@ export default function App() {
                   const awayScore = m.score?.fullTime?.away;
                   const homeWon = isDone && homeScore > awayScore;
                   const awayWon = isDone && awayScore > homeScore;
-                  const cardTop = pitch * mi + pitch/2 - CARD_H/2 + 20;
+                  const homeLost = isDone && !homeWon && !!m.homeTeam?.name;
+                  const awayLost = isDone && !awayWon && !!m.awayTeam?.name;
+                  const cardTop = pitch*mi + pitch/2 - CARD_H/2 + 20;
                   const kickoff = m.utcDate
                     ? new Date(m.utcDate).toLocaleDateString("en-GB",{day:"numeric",month:"short"}) + " " + new Date(m.utcDate).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})
                     : "";
-
                   return (
                     <div key={m.id} style={{
-                      position:"absolute",
-                      top:cardTop,
-                      left:0,
-                      width:CARD_W,
-                      height:CARD_H,
-                      background: isLive ? "rgba(239,68,68,0.1)" : "rgba(255,255,255,0.05)",
-                      border: isLive ? "1px solid rgba(239,68,68,0.5)" : "1px solid rgba(255,255,255,0.12)",
-                      borderRadius:8,
-                      overflow:"hidden",
-                      display:"flex",
-                      flexDirection:"column",
+                      position:"absolute", top:cardTop, left:0, width:CARD_W, height:CARD_H,
+                      background:isLive?"rgba(239,68,68,0.1)":"rgba(255,255,255,0.05)",
+                      border:isLive?"1px solid rgba(239,68,68,0.5)":"1px solid rgba(255,255,255,0.12)",
+                      borderRadius:8, overflow:"hidden", display:"flex", flexDirection:"column",
                     }}>
-                      {/* Time strip */}
                       <div style={{ padding:"3px 8px", background:"rgba(0,0,0,0.2)", display:"flex", alignItems:"center", gap:4 }}>
                         {isLive && <span className="live-pulse" style={{ width:5, height:5 }} />}
                         <span style={{ fontSize:9, color:isLive?"#ef4444":"#6b9aad", fontWeight:600, overflow:"hidden", whiteSpace:"nowrap", textOverflow:"ellipsis" }}>
-                          {isLive ? `${m.minute?`${m.minute}'`:""}LIVE` : kickoff}
+                          {isLive?`${m.minute?`${m.minute}'`:""}LIVE`:kickoff}
                         </span>
                       </div>
-                      {/* Home */}
-<div style={{ flex:1, borderBottom:"1px solid rgba(255,255,255,0.07)", display:"flex", alignItems:"center", background:homeWon?"rgba(0,212,106,0.06)":isDone&&!homeWon&&m.homeTeam?.name?"rgba(239,68,68,0.03)":"transparent" }}>
-  {renderTeamRow(m.homeTeam, homeScore, homeWon, isDone&&!homeWon&&!!m.homeTeam?.name, isLive, isDone)}
-</div>
-{/* Away */}
-<div style={{ flex:1, display:"flex", alignItems:"center", background:awayWon?"rgba(0,212,106,0.06)":isDone&&!awayWon&&m.awayTeam?.name?"rgba(239,68,68,0.03)":"transparent" }}>
-  {renderTeamRow(m.awayTeam, awayScore, awayWon, isDone&&!awayWon&&!!m.awayTeam?.name, isLive, isDone)}
-</div>
+                      <div style={{ flex:1, borderBottom:"1px solid rgba(255,255,255,0.07)", display:"flex", alignItems:"center", background:homeWon?"rgba(0,212,106,0.06)":homeLost?"rgba(239,68,68,0.03)":"transparent" }}>
+                        {renderTeamRow(m.homeTeam, homeScore, homeWon, homeLost, isLive, isDone)}
+                      </div>
+                      <div style={{ flex:1, display:"flex", alignItems:"center", background:awayWon?"rgba(0,212,106,0.06)":awayLost?"rgba(239,68,68,0.03)":"transparent" }}>
+                        {renderTeamRow(m.awayTeam, awayScore, awayWon, awayLost, isLive, isDone)}
+                      </div>
                     </div>
                   );
                 })}
@@ -613,11 +630,39 @@ export default function App() {
     );
   };
 
+  // Confetti pieces - memoized so they don't re-render constantly
+  const confettiPieces = Array.from({ length: 120 }).map((_, i) => ({
+    left: `${(i * 7.3) % 100}%`,
+    width: i%3===0?10:i%3===1?7:5,
+    height: i%3===0?10:i%3===1?7:5,
+    color: ["#00d46a","#ffd700","#ef4444","#3a86ff","#ff006e","#ffbe0b","#c77dff","#4cc9f0"][i%8],
+    isCircle: i%2===0,
+    duration: 2+(i%5)*0.6,
+    delay: (i%8)*0.3,
+    rotate: i*47,
+  }));
+
   return (
     <div style={S.app}>
       <style>{`
         * { box-sizing:border-box; margin:0; padding:0; }
         @keyframes fall { to { transform: translateY(110vh) rotate(360deg); opacity: 0.3; } }
+        @keyframes confettiFall {
+          0% { transform: translateY(-20px) rotate(0deg); opacity:1; }
+          100% { transform: translateY(110vh) rotate(720deg); opacity:0.4; }
+        }
+        @keyframes winnerPulse {
+          0%,100% { transform: scale(1); opacity:1; }
+          50% { transform: scale(1.06); opacity:0.9; }
+        }
+        @keyframes trophyBounce {
+          0%,100% { transform: scale(1) rotate(-5deg); }
+          50% { transform: scale(1.2) rotate(5deg); }
+        }
+        @keyframes glowPulse {
+          0%,100% { text-shadow: 0 0 20px rgba(255,215,0,0.6), 0 0 40px rgba(255,215,0,0.3); }
+          50% { text-shadow: 0 0 40px rgba(255,215,0,1), 0 0 80px rgba(255,215,0,0.6); }
+        }
         .nb { background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.12); color:#e8f4f8; padding:10px 16px; border-radius:10px; cursor:pointer; font-size:13px; font-weight:500; white-space:nowrap; }
         .nb:hover { background:rgba(0,212,106,0.2); border-color:#00d46a; }
         .nb.on { background:#00d46a; border-color:#00d46a; color:#0a1628; font-weight:700; }
@@ -636,6 +681,7 @@ export default function App() {
         .trow { display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.05); }
       `}</style>
 
+      {/* Football pitch background */}
       <div style={{ position:"fixed", inset:0, pointerEvents:"none", zIndex:0, overflow:"hidden" }}>
         <svg width="100%" height="100%" viewBox="0 0 400 600" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" style={{ opacity:0.06 }}>
           <rect x="20" y="20" width="360" height="560" fill="none" stroke="#00d46a" strokeWidth="2"/>
@@ -659,6 +705,7 @@ export default function App() {
         </svg>
       </div>
 
+      {/* Leaderboard change confetti */}
       {confettiTrigger > 0 && (
         <div key={confettiTrigger} style={{ position:"fixed", inset:0, pointerEvents:"none", zIndex:999, overflow:"hidden" }}>
           {Array.from({ length: 60 }).map((_, i) => (
@@ -673,12 +720,102 @@ export default function App() {
         </div>
       )}
 
+      {/* Toast */}
       {toast && (
         <div style={{ position:"fixed", top:20, left:"50%", transform:"translateX(-50%)", background:toast.type==="error"?"#ef4444":"#00d46a", color:"#fff", padding:"12px 24px", borderRadius:12, fontWeight:600, zIndex:1000, whiteSpace:"nowrap" }}>
           {toast.msg}
         </div>
       )}
 
+      {/* 🏆 TOURNAMENT WINNER OVERLAY */}
+      {tournamentWinner && (
+        <div
+          onClick={() => setTournamentWinner(null)}
+          style={{
+            position:"fixed", inset:0, zIndex:3000,
+            background:"rgba(5,10,25,0.96)",
+            display:"flex", flexDirection:"column",
+            alignItems:"center", justifyContent:"center",
+            cursor:"pointer",
+            overflow:"hidden",
+          }}
+        >
+          {/* Continuous confetti */}
+          {confettiPieces.map((p, i) => (
+            <div key={i} style={{
+              position:"fixed",
+              left:p.left,
+              top:"-20px",
+              width:p.width,
+              height:p.height,
+              background:p.color,
+              borderRadius:p.isCircle?"50%":"2px",
+              animation:`confettiFall ${p.duration}s linear ${p.delay}s infinite`,
+              transform:`rotate(${p.rotate}deg)`,
+              pointerEvents:"none",
+            }} />
+          ))}
+
+          {/* Winner card */}
+          <div style={{ position:"relative", zIndex:1, textAlign:"center", padding:"40px 32px", maxWidth:500, width:"90%" }}>
+
+            {/* Trophy */}
+            <div style={{ fontSize:90, marginBottom:20, animation:"trophyBounce 1.5s ease-in-out infinite", display:"block" }}>
+              🏆
+            </div>
+
+            {/* World Cup Champion label */}
+            <div style={{ fontSize:13, fontWeight:700, color:"#ffd700", textTransform:"uppercase", letterSpacing:"0.25em", marginBottom:24 }}>
+              World Cup Champion
+            </div>
+
+            {/* Flag + team name */}
+            <div style={{ animation:"winnerPulse 1.2s ease-in-out infinite" }}>
+              <div style={{ fontSize:80, marginBottom:16 }}>{tournamentWinner.flag}</div>
+              <div style={{ fontSize:44, fontWeight:900, color:"#ffffff", marginBottom:6, animation:"glowPulse 1.5s ease-in-out infinite", lineHeight:1.1 }}>
+                {tournamentWinner.team}
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div style={{ width:60, height:2, background:"rgba(255,215,0,0.4)", margin:"28px auto" }} />
+
+            {/* Owner */}
+            {tournamentWinner.owner ? (
+              <div style={{ animation:"winnerPulse 1.2s ease-in-out infinite 0.4s" }}>
+                <div style={{ fontSize:12, color:"#6b9aad", marginBottom:12, letterSpacing:"0.15em", textTransform:"uppercase" }}>
+                  Office Sweepstake Winner
+                </div>
+                <div style={{
+                  display:"inline-block",
+                  background:tournamentWinner.ownerColor,
+                  color:"#fff",
+                  fontSize:30,
+                  fontWeight:800,
+                  padding:"14px 36px",
+                  borderRadius:99,
+                  boxShadow:`0 0 60px ${tournamentWinner.ownerColor}99, 0 0 120px ${tournamentWinner.ownerColor}44`,
+                  marginBottom:16,
+                }}>
+                  {tournamentWinner.owner}
+                </div>
+                <div style={{ fontSize:18, color:"#00d46a", fontWeight:700, marginTop:8 }}>
+                  🎉 Congratulations!
+                </div>
+              </div>
+            ) : (
+              <div style={{ fontSize:14, color:"#6b9aad" }}>No office owner for this team</div>
+            )}
+
+            {/* Dismiss */}
+            <div style={{ marginTop:48, fontSize:12, color:"rgba(255,255,255,0.25)", letterSpacing:"0.1em" }}>
+              TAP ANYWHERE TO CLOSE
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Live ticker */}
       {liveMatches.length > 0 && (
         <div style={{ background:"rgba(239,68,68,0.12)", borderBottom:"1px solid rgba(239,68,68,0.3)", padding:"8px 16px", overflowX:"auto", whiteSpace:"nowrap" }}>
           <span style={{ fontSize:11, fontWeight:700, color:"#ef4444", marginRight:12 }}><span className="live-pulse" style={{ marginRight:6 }} />LIVE</span>
@@ -712,6 +849,17 @@ export default function App() {
 
         {screen === "home" && (
           <div>
+            {/* DEV ONLY test button */}
+            {IS_DEV && (
+              <div style={{ marginBottom:14 }}>
+                <button
+                  onClick={triggerTestWinner}
+                  style={{ background:"linear-gradient(135deg,#f72585,#c77dff)", color:"#fff", border:"none", borderRadius:10, padding:"10px 20px", fontSize:13, fontWeight:700, cursor:"pointer", width:"100%" }}>
+                  🧪 DEV: Test Winner Screen
+                </button>
+              </div>
+            )}
+
             <div style={{ ...S.card, padding:"28px 24px", textAlign:"center", marginBottom:14 }}>
               <div style={{ fontSize:34, marginBottom:10 }}>⚽</div>
               <h2 style={{ fontSize:19, fontWeight:700, marginBottom:8 }}>Welcome to the Sweepstake!</h2>
@@ -1222,43 +1370,46 @@ export default function App() {
         )}
 
         {screen === "knockout" && (
-  <div style={{ margin:"0 -16px" }}>
-    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18, padding:"0 16px" }}>
-      <h2 style={{ fontSize:19, fontWeight:700 }}>🏆 Knockout</h2>
-      <button className="nb" style={{ fontSize:12, padding:"7px 12px" }} onClick={fetchAll}>🔄 Refresh</button>
-    </div>
-    <div style={{ fontSize:11, color:"#6b9aad", marginBottom:14, padding:"0 16px" }}>← Scroll sideways to see all rounds →</div>
-<BracketView />
-{/* 3rd Place match shown separately below bracket */}
-{knockoutMatches.filter(m => m.stage === "THIRD_PLACE").map(m => {
-  const isLive = ["IN_PLAY","PAUSED","HALFTIME"].includes(m.status);
-  const isDone = m.status === "FINISHED";
-  const homeScore = m.score?.fullTime?.home;
-  const awayScore = m.score?.fullTime?.away;
-  const homeWon = isDone && homeScore > awayScore;
-  const awayWon = isDone && awayScore > homeScore;
-  const kickoff = m.utcDate ? new Date(m.utcDate).toLocaleDateString("en-GB",{day:"numeric",month:"short"}) + " " + new Date(m.utcDate).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}) : "";
-  return (
-    <div key={m.id} style={{ margin:"16px 16px 0", background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:12, overflow:"hidden" }}>
-      <div style={{ padding:"8px 12px", background:"rgba(0,0,0,0.2)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <span style={{ fontSize:11, fontWeight:700, color:"#f59e0b" }}>🥉 3rd Place</span>
-        <span style={{ fontSize:10, color:"#6b9aad" }}>{isLive ? "LIVE" : kickoff}</span>
-      </div>
-      <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 12px", borderBottom:"1px solid rgba(255,255,255,0.06)", background:homeWon?"rgba(0,212,106,0.05)":"transparent" }}>
-        <span style={{ fontSize:16 }}>{getFlag(m.homeTeam?.name)}</span>
-        <span style={{ flex:1, fontSize:13, fontWeight:homeWon?700:400, color:homeWon?"#00d46a":m.homeTeam?.name?"#e8f4f8":"#4a6a7a" }}>{m.homeTeam?.name || "TBD"}</span>
-        {(isLive||isDone) && homeScore !== null && <span style={{ fontWeight:800, color:homeWon?"#00d46a":"#6b9aad" }}>{homeScore}</span>}
-      </div>
-      <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 12px", background:awayWon?"rgba(0,212,106,0.05)":"transparent" }}>
-        <span style={{ fontSize:16 }}>{getFlag(m.awayTeam?.name)}</span>
-        <span style={{ flex:1, fontSize:13, fontWeight:awayWon?700:400, color:awayWon?"#00d46a":m.awayTeam?.name?"#e8f4f8":"#4a6a7a" }}>{m.awayTeam?.name || "TBD"}</span>
-        {(isLive||isDone) && awayScore !== null && <span style={{ fontWeight:800, color:awayWon?"#00d46a":"#6b9aad" }}>{awayScore}</span>}
-      </div>
-    </div>
-  );
-})}
-  </div>
-)}
+          <div style={{ margin:"0 -16px" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12, padding:"0 16px" }}>
+              <h2 style={{ fontSize:19, fontWeight:700 }}>🏆 Knockout</h2>
+              <button className="nb" style={{ fontSize:12, padding:"7px 12px" }} onClick={fetchAll}>🔄 Refresh</button>
+            </div>
+            <div style={{ fontSize:11, color:"#6b9aad", marginBottom:12, padding:"0 16px" }}>← Scroll sideways to see all rounds →</div>
+            <BracketView />
+            {knockoutMatches.filter(m=>m.stage==="THIRD_PLACE").map(m => {
+              const isLive=["IN_PLAY","PAUSED","HALFTIME"].includes(m.status);
+              const isDone=m.status==="FINISHED";
+              const homeScore=m.score?.fullTime?.home;
+              const awayScore=m.score?.fullTime?.away;
+              const homeWon=isDone&&homeScore>awayScore;
+              const awayWon=isDone&&awayScore>homeScore;
+              const kickoff=m.utcDate?new Date(m.utcDate).toLocaleDateString("en-GB",{day:"numeric",month:"short"})+" "+new Date(m.utcDate).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}):"";
+              return (
+                <div key={m.id} style={{ margin:"16px 16px 0", background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:12, overflow:"hidden" }}>
+                  <div style={{ padding:"8px 12px", background:"rgba(0,0,0,0.2)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                    <span style={{ fontSize:11, fontWeight:700, color:"#f59e0b" }}>🥉 3rd Place</span>
+                    <span style={{ fontSize:10, color:"#6b9aad" }}>{isLive?"LIVE":kickoff}</span>
+                  </div>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 12px", borderBottom:"1px solid rgba(255,255,255,0.06)", background:homeWon?"rgba(0,212,106,0.05)":"transparent", opacity:isDone&&!homeWon&&m.homeTeam?.name?0.5:1 }}>
+                    <span style={{ fontSize:16 }}>{getFlag(m.homeTeam?.name)}</span>
+                    <span style={{ flex:1, fontSize:13, fontWeight:homeWon?700:400, color:homeWon?"#00d46a":m.homeTeam?.name?"#e8f4f8":"#4a6a7a" }}>{m.homeTeam?.name||"TBD"}</span>
+                    {isDone&&homeWon&&<span>✅</span>}
+                    {isDone&&!homeWon&&m.homeTeam?.name&&<span>❌</span>}
+                    {(isLive||isDone)&&homeScore!==null&&<span style={{ fontWeight:800, color:homeWon?"#00d46a":"#6b9aad" }}>{homeScore}</span>}
+                  </div>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 12px", background:awayWon?"rgba(0,212,106,0.05)":"transparent", opacity:isDone&&!awayWon&&m.awayTeam?.name?0.5:1 }}>
+                    <span style={{ fontSize:16 }}>{getFlag(m.awayTeam?.name)}</span>
+                    <span style={{ flex:1, fontSize:13, fontWeight:awayWon?700:400, color:awayWon?"#00d46a":m.awayTeam?.name?"#e8f4f8":"#4a6a7a" }}>{m.awayTeam?.name||"TBD"}</span>
+                    {isDone&&awayWon&&<span>✅</span>}
+                    {isDone&&!awayWon&&m.awayTeam?.name&&<span>❌</span>}
+                    {(isLive||isDone)&&awayScore!==null&&<span style={{ fontWeight:800, color:awayWon?"#00d46a":"#6b9aad" }}>{awayScore}</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {screen === "register" && (
           <div style={{ ...S.card, padding:"24px 20px" }}>
