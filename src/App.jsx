@@ -105,8 +105,8 @@ const Toggle = ({ value, onChange }) => (
 const CARD_W = 160;
 const CARD_H = 72;
 const COL_GAP = 40;
-const ROUND_KEYS = ["LAST_32","LAST_16","QUARTER_FINALS","SEMI_FINALS","THIRD_PLACE","FINAL"];
-const ROUND_LABELS = { LAST_32:"Round of 32", LAST_16:"Round of 16", QUARTER_FINALS:"Quarter Finals", SEMI_FINALS:"Semi Finals", THIRD_PLACE:"3rd Place", FINAL:"Final" };
+const ROUND_KEYS = ["LAST_32","LAST_16","QUARTER_FINALS","SEMI_FINALS","FINAL"];
+const ROUND_LABELS = { LAST_32:"Round of 32", LAST_16:"Round of 16", QUARTER_FINALS:"Quarter Finals", SEMI_FINALS:"Semi Finals", FINAL:"Final" };
 export default function App() {
   const [screen, setScreen] = useState("home");
   const [participants, setParticipants] = useState([]);
@@ -463,48 +463,51 @@ export default function App() {
       matchCentres[key] = matches.map((_, mi) => pitch * mi + pitch / 2);
     });
 
-    const renderTeamRow = (team, score, won, isLive, isDone) => {
-      const name = team?.name;
-      const flag = name ? getFlag(name) : null;
-      const nameMap = {
-  "USA": "United States",
-  "Korea Republic": "South Korea",
-  "IR Iran": "Iran",
-  "Côte d'Ivoire": "Ivory Coast",
-  "Türkiye": "Turkey",
-  "Cape Verde": "Cape Verde Islands",
-};
-const resolvedName = nameMap[name] || name;
-const owners = name ? participants.filter(p => p.teams.some(t =>
-  resolvedName.includes(t) || t.includes(resolvedName) || name.includes(t) || t.includes(name)
-)) : [];
-      return (
-        <div style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 8px", flex:1 }}>
-          <span style={{ fontSize:13, flexShrink:0, width:18 }}>{flag || "🏳️"}</span>
-          <span style={{
-            fontSize:11, fontWeight:won?700:400,
-            color: won ? "#00d46a" : name ? "#e8f4f8" : "#4a6a7a",
-            flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"
-          }}>
-            {name || "TBD"}
-          </span>
-          {owners.length > 0 && (
-            <div style={{ display:"flex", gap:2 }}>
-              {owners.slice(0,2).map(o=>(
-                <span key={o.id} style={{ background:o.color, color:"#fff", fontSize:7, fontWeight:700, padding:"1px 3px", borderRadius:99, flexShrink:0 }}>
-                  {getInitials(o.name)}
-                </span>
-              ))}
-            </div>
-          )}
-          {(isLive||isDone) && score !== null && score !== undefined && (
-            <span style={{ fontSize:13, fontWeight:800, color:won?"#00d46a":"#6b9aad", flexShrink:0, minWidth:14, textAlign:"right" }}>
-              {score}
+    const renderTeamRow = (team, score, won, lost, isLive, isDone) => {
+  const name = team?.name;
+  const flag = name ? getFlag(name) : null;
+  const nameMap = {
+    "USA": "United States",
+    "Korea Republic": "South Korea",
+    "IR Iran": "Iran",
+    "Côte d'Ivoire": "Ivory Coast",
+    "Türkiye": "Turkey",
+    "Cape Verde": "Cape Verde Islands",
+  };
+  const resolvedName = nameMap[name] || name;
+  const owners = name ? participants.filter(p => p.teams.some(t =>
+    resolvedName.includes(t) || t.includes(resolvedName) || name.includes(t) || t.includes(name)
+  )) : [];
+  return (
+    <div style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 8px", flex:1, opacity: lost ? 0.45 : 1 }}>
+      <span style={{ fontSize:13, flexShrink:0, width:18 }}>{flag || "🏳️"}</span>
+      <span style={{
+        fontSize:11, fontWeight:won?700:400,
+        color: won ? "#00d46a" : name ? "#e8f4f8" : "#4a6a7a",
+        flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap",
+        textDecoration: lost ? "line-through" : "none",
+      }}>
+        {name || "TBD"}
+      </span>
+      {owners.length > 0 && (
+        <div style={{ display:"flex", gap:2 }}>
+          {owners.slice(0,2).map(o=>(
+            <span key={o.id} style={{ background:o.color, color:"#fff", fontSize:7, fontWeight:700, padding:"1px 3px", borderRadius:99, flexShrink:0 }}>
+              {getInitials(o.name)}
             </span>
-          )}
+          ))}
         </div>
-      );
-    };
+      )}
+      {isDone && won && <span style={{ fontSize:10, flexShrink:0 }}>✅</span>}
+      {isDone && lost && <span style={{ fontSize:10, flexShrink:0 }}>❌</span>}
+      {(isLive||isDone) && score !== null && score !== undefined && (
+        <span style={{ fontSize:13, fontWeight:800, color:won?"#00d46a":"#6b9aad", flexShrink:0, minWidth:14, textAlign:"right" }}>
+          {score}
+        </span>
+      )}
+    </div>
+  );
+};
 
     return (
       <div style={{ overflowX:"auto", overflowY:"auto", WebkitOverflowScrolling:"touch", paddingBottom:8 }}>
@@ -590,13 +593,13 @@ const owners = name ? participants.filter(p => p.teams.some(t =>
                         </span>
                       </div>
                       {/* Home */}
-                      <div style={{ flex:1, borderBottom:"1px solid rgba(255,255,255,0.07)", display:"flex", alignItems:"center", background:homeWon?"rgba(0,212,106,0.06)":"transparent" }}>
-                        {renderTeamRow(m.homeTeam, homeScore, homeWon, isLive, isDone)}
-                      </div>
-                      {/* Away */}
-                      <div style={{ flex:1, display:"flex", alignItems:"center", background:awayWon?"rgba(0,212,106,0.06)":"transparent" }}>
-                        {renderTeamRow(m.awayTeam, awayScore, awayWon, isLive, isDone)}
-                      </div>
+<div style={{ flex:1, borderBottom:"1px solid rgba(255,255,255,0.07)", display:"flex", alignItems:"center", background:homeWon?"rgba(0,212,106,0.06)":isDone&&!homeWon&&m.homeTeam?.name?"rgba(239,68,68,0.03)":"transparent" }}>
+  {renderTeamRow(m.homeTeam, homeScore, homeWon, isDone&&!homeWon&&!!m.homeTeam?.name, isLive, isDone)}
+</div>
+{/* Away */}
+<div style={{ flex:1, display:"flex", alignItems:"center", background:awayWon?"rgba(0,212,106,0.06)":isDone&&!awayWon&&m.awayTeam?.name?"rgba(239,68,68,0.03)":"transparent" }}>
+  {renderTeamRow(m.awayTeam, awayScore, awayWon, isDone&&!awayWon&&!!m.awayTeam?.name, isLive, isDone)}
+</div>
                     </div>
                   );
                 })}
@@ -1223,7 +1226,35 @@ const owners = name ? participants.filter(p => p.teams.some(t =>
       <button className="nb" style={{ fontSize:12, padding:"7px 12px" }} onClick={fetchAll}>🔄 Refresh</button>
     </div>
     <div style={{ fontSize:11, color:"#6b9aad", marginBottom:14, padding:"0 16px" }}>← Scroll sideways to see all rounds →</div>
-    <BracketView />
+<BracketView />
+{/* 3rd Place match shown separately below bracket */}
+{knockoutMatches.filter(m => m.stage === "THIRD_PLACE").map(m => {
+  const isLive = ["IN_PLAY","PAUSED","HALFTIME"].includes(m.status);
+  const isDone = m.status === "FINISHED";
+  const homeScore = m.score?.fullTime?.home;
+  const awayScore = m.score?.fullTime?.away;
+  const homeWon = isDone && homeScore > awayScore;
+  const awayWon = isDone && awayScore > homeScore;
+  const kickoff = m.utcDate ? new Date(m.utcDate).toLocaleDateString("en-GB",{day:"numeric",month:"short"}) + " " + new Date(m.utcDate).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}) : "";
+  return (
+    <div key={m.id} style={{ margin:"16px 16px 0", background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:12, overflow:"hidden" }}>
+      <div style={{ padding:"8px 12px", background:"rgba(0,0,0,0.2)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <span style={{ fontSize:11, fontWeight:700, color:"#f59e0b" }}>🥉 3rd Place</span>
+        <span style={{ fontSize:10, color:"#6b9aad" }}>{isLive ? "LIVE" : kickoff}</span>
+      </div>
+      <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 12px", borderBottom:"1px solid rgba(255,255,255,0.06)", background:homeWon?"rgba(0,212,106,0.05)":"transparent" }}>
+        <span style={{ fontSize:16 }}>{getFlag(m.homeTeam?.name)}</span>
+        <span style={{ flex:1, fontSize:13, fontWeight:homeWon?700:400, color:homeWon?"#00d46a":m.homeTeam?.name?"#e8f4f8":"#4a6a7a" }}>{m.homeTeam?.name || "TBD"}</span>
+        {(isLive||isDone) && homeScore !== null && <span style={{ fontWeight:800, color:homeWon?"#00d46a":"#6b9aad" }}>{homeScore}</span>}
+      </div>
+      <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 12px", background:awayWon?"rgba(0,212,106,0.05)":"transparent" }}>
+        <span style={{ fontSize:16 }}>{getFlag(m.awayTeam?.name)}</span>
+        <span style={{ flex:1, fontSize:13, fontWeight:awayWon?700:400, color:awayWon?"#00d46a":m.awayTeam?.name?"#e8f4f8":"#4a6a7a" }}>{m.awayTeam?.name || "TBD"}</span>
+        {(isLive||isDone) && awayScore !== null && <span style={{ fontWeight:800, color:awayWon?"#00d46a":"#6b9aad" }}>{awayScore}</span>}
+      </div>
+    </div>
+  );
+})}
   </div>
 )}
 
