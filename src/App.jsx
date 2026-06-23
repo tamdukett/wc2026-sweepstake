@@ -224,10 +224,10 @@ export default function App() {
         const all = matchesData.matches;
         setLiveMatches(all.filter(m => ["IN_PLAY","PAUSED","HALFTIME"].includes(m.status)));
         setFixtures([
-          ...all.filter(m => ["IN_PLAY","PAUSED","HALFTIME"].includes(m.status)),
-          ...all.filter(m => m.status==="TIMED"||m.status==="SCHEDULED"),
-          ...all.filter(m => m.status==="FINISHED").slice(-15),
-        ]);
+  ...all.filter(m => ["IN_PLAY","PAUSED","HALFTIME"].includes(m.status)),
+  ...all.filter(m => m.status === "TIMED" || m.status === "SCHEDULED"),
+  ...all.filter(m => m.status === "FINISHED").reverse(),
+]);
         setKnockoutMatches(all.filter(m => m.stage && !m.stage.includes("GROUP")));
       }
       setApiError(false);
