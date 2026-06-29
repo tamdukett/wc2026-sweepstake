@@ -98,9 +98,9 @@ const ROUND_LABELS = {
   LAST_32:"Round of 32", LAST_16:"Round of 16",
   QUARTER_FINALS:"Quarter Finals", SEMI_FINALS:"Semi Finals", FINAL:"Final"
 };
-const CARD_W = 160;
-const CARD_H = 72;
-const COL_GAP = 40;
+const CARD_W = 150;
+const CARD_H = 80;
+const COL_GAP = 32;
 
 const getInitials = n => n.split(" ").map(w => w[0]).join("").toUpperCase().slice(0,2);
 const fc = r => r === "W" ? "#00d46a" : r === "D" ? "#f59e0b" : "#ef4444";
@@ -521,12 +521,8 @@ export default function App() {
             {name||"TBD"}
           </span>
           {owners.length>0&&(
-            <div style={{ display:"flex", gap:2 }}>
-              {owners.slice(0,2).map(o=>(
-                <span key={o.id} style={{ background:o.color, color:"#fff", fontSize:7, fontWeight:700, padding:"1px 3px", borderRadius:99, flexShrink:0 }}>{getInitials(o.name)}</span>
-              ))}
-            </div>
-          )}
+  <span style={{ background:owners[0].color, color:"#fff", fontSize:7, fontWeight:700, padding:"1px 3px", borderRadius:99, flexShrink:0 }}>{getInitials(owners[0].name)}{owners.length>1?`+${owners.length-1}`:""}</span>
+)}
           {isDone&&won&&<span style={{ fontSize:10, flexShrink:0 }}>✅</span>}
           {isDone&&lost&&<span style={{ fontSize:10, flexShrink:0 }}>❌</span>}
           {(isLive||isDone)&&score!==null&&score!==undefined&&(
