@@ -92,7 +92,7 @@ const ROUND_LABELS = {
   QUARTER_FINALS:"Quarter Finals", SEMI_FINALS:"Semi Finals", FINAL:"Final"
 };
 const CARD_W = 150;
-const CARD_H = 80;
+const CARD_H = 76;
 const COL_GAP = 32;
 
 const FIFA_R32_ORDER = [
@@ -482,16 +482,18 @@ const centresByRound = presentRounds.map((key, r) => {
 });
 
 // Map each match in each round to its correct fixed slot index
-const getSlotForMatch = (m, roundIndex) => {
+const getSlotForMatch = (m, roundIndex, matchesInRound) => {
   if (roundIndex === 0) return getR32SlotIndex(m);
   const home = m.homeTeam?.name || "";
   const away = m.awayTeam?.name || "";
   const hi = FIFA_R32_ORDER.findIndex(t => home.includes(t) || t.includes(home));
   const ai = FIFA_R32_ORDER.findIndex(t => away.includes(t) || t.includes(away));
   const idx = hi !== -1 ? hi : ai;
-  if (idx === -1) return 0;
-  // Each round halves the slot count: R32 slot -> R16 slot -> QF slot etc
-  return Math.floor(idx / Math.pow(2, roundIndex + 1));
+  if (idx !== -1) return Math.floor(idx / Math.pow(2, roundIndex + 1));
+  // Teams not yet known (both TBD) — fall back to date-sorted position
+  // among other unknown matches in this round, evenly distributed.
+  const sortedInRound = [...matchesInRound].sort((a,b) => new Date(a.utcDate)-new Date(b.utcDate));
+  return sortedInRound.indexOf(m);
 };
 
     const renderTeamRow = (team, score, won, lost, isLive, isDone) => {
@@ -557,7 +559,7 @@ const getSlotForMatch = (m, roundIndex) => {
         {ROUND_LABELS[key]}
       </div>
       {matches.map((m,mi) => {
-        const slotIdx = ri===0 ? getR32SlotIndex(m) : getSlotForMatch(m, ri);
+        const slotIdx = ri===0 ? getR32SlotIndex(m) : getSlotForMatch(m, ri, matches);
                   const isLive=["IN_PLAY","PAUSED","HALFTIME"].includes(m.status);
                   const isDone=m.status==="FINISHED";
                   const homeScore=m.score?.fullTime?.home;
@@ -566,7 +568,7 @@ const getSlotForMatch = (m, roundIndex) => {
                   const awayWon=isDone&&awayScore>homeScore;
                   const homeLost=isDone&&!homeWon&&!!m.homeTeam?.name;
                   const awayLost=isDone&&!awayWon&&!!m.awayTeam?.name;
-                  const cardTop=(centres[slotIdx]??(basePitch*slotIdx+basePitch/2))-CARD_H/2+20;
+                  const cardTop=(centres[slotIdx] ?? (basePitch*slotIdx+basePitch/2))-CARD_H/2+20;
                   const kickoff=m.utcDate?new Date(m.utcDate).toLocaleDateString("en-GB",{day:"numeric",month:"short"})+" "+new Date(m.utcDate).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}):"";
                   const liveMin=getLiveMinute(m);
                   return (
