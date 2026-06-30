@@ -100,20 +100,19 @@ const FIFA_R32_ORDER = [
   "Netherlands","Morocco",
   "Germany","Paraguay",
   "France","Sweden",
-  "Mexico","Ecuador",
-  "England","Congo DR",
   "Belgium","Senegal",
   "United States","Bosnia-Herzegovina",
-  "Brazil","Japan",
-  "Ivory Coast","Norway",
   "Spain","Austria",
   "Portugal","Croatia",
+  "Brazil","Japan",
+  "Ivory Coast","Norway",
+  "Mexico","Ecuador",
+  "England","Congo DR",
   "Switzerland","Algeria",
+  "Colombia","Ghana",
   "Australia","Egypt",
   "Argentina","Cape Verde Islands",
-  "Colombia","Ghana",
 ];
-
 const sortMatches = (matchList, stage) => {
   if (stage !== "LAST_32") return [...matchList].sort((a,b) => new Date(a.utcDate)-new Date(b.utcDate));
   return [...matchList].sort((a,b) => {
