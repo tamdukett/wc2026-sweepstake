@@ -457,44 +457,19 @@ export default function App() {
     );
 
     const firstRoundCount = knockoutMatches.filter(m=>m.stage===presentRounds[0]).length;
-    const totalHeight = 16*(CARD_H+16);
+    const totalHeight = firstRoundCount*(CARD_H+16);
     const totalWidth = presentRounds.length*(CARD_W+COL_GAP)+16;
 
-    // Every round has 16/(2^r) slots. Slot i in round r always covers R32 slots
-// [i * 2^r, (i+1) * 2^r). Its centre is the midpoint of that fixed range,
-// expressed in basePitch units — independent of which matches are present.
-const totalR32Slots = 16;
-const basePitch = totalHeight / totalR32Slots;
-
-const getR32SlotIndex = (m) => {
-  const home = m.homeTeam?.name || "";
-  const away = m.awayTeam?.name || "";
-  const hi = FIFA_R32_ORDER.findIndex(t => home.includes(t) || t.includes(home));
-  const ai = FIFA_R32_ORDER.findIndex(t => away.includes(t) || t.includes(away));
-  const idx = hi !== -1 ? hi : ai;
-  return idx !== -1 ? Math.floor(idx / 2) : 0;
-};
-
-const centresByRound = presentRounds.map((key, r) => {
-  const numSlots = totalR32Slots / Math.pow(2, r);
-  const slotWidth = totalHeight / numSlots;
-  return Array.from({ length: numSlots }, (_, slot) => slotWidth * slot + slotWidth / 2);
-});
-
-// Map each match in each round to its correct fixed slot index
-const getSlotForMatch = (m, roundIndex, matchesInRound) => {
-  if (roundIndex === 0) return getR32SlotIndex(m);
-  const home = m.homeTeam?.name || "";
-  const away = m.awayTeam?.name || "";
-  const hi = FIFA_R32_ORDER.findIndex(t => home.includes(t) || t.includes(home));
-  const ai = FIFA_R32_ORDER.findIndex(t => away.includes(t) || t.includes(away));
-  const idx = hi !== -1 ? hi : ai;
-  if (idx !== -1) return Math.floor(idx / Math.pow(2, roundIndex + 1));
-  // Teams not yet known (both TBD) — fall back to date-sorted position
-  // among other unknown matches in this round, evenly distributed.
-  const sortedInRound = [...matchesInRound].sort((a,b) => new Date(a.utcDate)-new Date(b.utcDate));
-  return sortedInRound.indexOf(m);
-};
+    // Simple, collision-proof positioning: every round's matches are sorted
+    // (FIFA order for R32, date order for later rounds) then evenly spaced
+    // top-to-bottom within totalHeight. No fixed slot math, so two matches
+    // can never land on the exact same position.
+    const centresByRound = presentRounds.map((key) => {
+      const matches = sortMatches(knockoutMatches.filter(m=>m.stage===key), key);
+      const count = matches.length || 1;
+      const pitch = totalHeight / count;
+      return matches.map((_, i) => pitch*i + pitch/2);
+    });
 
     const renderTeamRow = (team, score, won, lost, isLive, isDone) => {
       const name=team?.name;
@@ -559,7 +534,7 @@ const getSlotForMatch = (m, roundIndex, matchesInRound) => {
         {ROUND_LABELS[key]}
       </div>
       {matches.map((m,mi) => {
-        const slotIdx = ri===0 ? getR32SlotIndex(m) : getSlotForMatch(m, ri, matches);
+        const slotIdx = mi;
                   const isLive=["IN_PLAY","PAUSED","HALFTIME"].includes(m.status);
                   const isDone=m.status==="FINISHED";
                   const homeScore=m.score?.fullTime?.home;
@@ -568,7 +543,7 @@ const getSlotForMatch = (m, roundIndex, matchesInRound) => {
                   const awayWon=isDone&&awayScore>homeScore;
                   const homeLost=isDone&&!homeWon&&!!m.homeTeam?.name;
                   const awayLost=isDone&&!awayWon&&!!m.awayTeam?.name;
-                  const cardTop=(centres[slotIdx] ?? (basePitch*slotIdx+basePitch/2))-CARD_H/2+20;
+                  const cardTop=(centres[slotIdx] ?? 0)-CARD_H/2+20;
                   const kickoff=m.utcDate?new Date(m.utcDate).toLocaleDateString("en-GB",{day:"numeric",month:"short"})+" "+new Date(m.utcDate).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}):"";
                   const liveMin=getLiveMinute(m);
                   return (
