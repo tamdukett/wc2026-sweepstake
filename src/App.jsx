@@ -114,6 +114,8 @@ const FIFA_R32_ORDER = [
   "Argentina","Cape Verde Islands",
 ];
 
+// R32 sorted by FIFA bracket order; all later rounds sorted by date
+// (the API assigns kickoff dates that already follow the correct FIFA bracket order)
 const sortMatches = (matchList, stage) => {
   if (stage !== "LAST_32") return [...matchList].sort((a,b) => new Date(a.utcDate)-new Date(b.utcDate));
   return [...matchList].sort((a,b) => {
@@ -125,28 +127,6 @@ const sortMatches = (matchList, stage) => {
       return Math.min(hi===-1?999:hi, ai===-1?999:ai);
     };
     return getOrder(a)-getOrder(b);
-  });
-};
-
-// Get a match's position in the FIFA R32 order (returns -1 if unknown)
-const getR32Idx = (m) => {
-  const home = m.homeTeam?.name || "";
-  const away = m.awayTeam?.name || "";
-  const hi = FIFA_R32_ORDER.findIndex(t => home.includes(t) || t.includes(home));
-  const ai = FIFA_R32_ORDER.findIndex(t => away.includes(t) || t.includes(away));
-  return hi !== -1 ? hi : ai;
-};
-
-// Sort R16+ matches by bracket position when teams are known, date otherwise
-const sortMatchesByBracket = (matchList, stage) => {
-  if (stage === "LAST_32") return sortMatches(matchList, stage);
-  return [...matchList].sort((a, b) => {
-    const ai = getR32Idx(a);
-    const bi = getR32Idx(b);
-    if (ai !== -1 && bi !== -1) return ai - bi;
-    if (ai !== -1) return ai < 16 ? -1 : 1;
-    if (bi !== -1) return bi < 16 ? 1 : -1;
-    return new Date(a.utcDate) - new Date(b.utcDate);
   });
 };
 
@@ -188,8 +168,11 @@ export default function App() {
   const [adminSettings, setAdminSettings] = useState(DEFAULT_SETTINGS);
   const [tournamentWinner, setTournamentWinner] = useState(null);
   const [tick, setTick] = useState(0);
+  const [easterEggTaps, setEasterEggTaps] = useState(0);
+  const [showEasterEgg, setShowEasterEgg] = useState(false);
   const liveTimer = useRef(null);
   const prevStandingsRef = useRef({});
+  const easterEggTimer = useRef(null);
 
   const loadParticipants = useCallback(async () => {
     const { data, error } = await supabase.from("participants").select("*").order("created_at",{ascending:true});
@@ -479,13 +462,13 @@ export default function App() {
       </div>
     );
 
-    const firstRoundMatches = sortMatchesByBracket(knockoutMatches.filter(m=>m.stage===presentRounds[0]), presentRounds[0]);
+    const firstRoundMatches = sortMatches(knockoutMatches.filter(m=>m.stage===presentRounds[0]), presentRounds[0]);
     const totalHeight = firstRoundMatches.length*(CARD_H+16);
     const totalWidth = presentRounds.length*(CARD_W+COL_GAP)+16;
 
-    // Build centres for each round by evenly spacing sorted matches
+    // All rounds sorted by date — FIFA assigns kickoff dates in correct bracket order
     const centresByRound = presentRounds.map((key) => {
-      const matches = sortMatchesByBracket(knockoutMatches.filter(m=>m.stage===key), key);
+      const matches = sortMatches(knockoutMatches.filter(m=>m.stage===key), key);
       const count = matches.length || 1;
       const pitch = totalHeight / count;
       return matches.map((_, i) => pitch*i + pitch/2);
@@ -545,7 +528,7 @@ export default function App() {
           </svg>
 
           {presentRounds.map((key,ri) => {
-            const matches = sortMatchesByBracket(knockoutMatches.filter(m=>m.stage===key), key);
+            const matches = sortMatches(knockoutMatches.filter(m=>m.stage===key), key);
             const centres = centresByRound[ri];
             const colX = ri*(CARD_W+COL_GAP);
             return (
@@ -605,6 +588,10 @@ export default function App() {
         @keyframes winnerPulse{0%,100%{transform:scale(1);opacity:1;}50%{transform:scale(1.06);opacity:0.9;}}
         @keyframes trophyBounce{0%,100%{transform:scale(1) rotate(-5deg);}50%{transform:scale(1.2) rotate(5deg);}}
         @keyframes glowPulse{0%,100%{text-shadow:0 0 20px rgba(255,215,0,0.6),0 0 40px rgba(255,215,0,0.3);}50%{text-shadow:0 0 40px rgba(255,215,0,1),0 0 80px rgba(255,215,0,0.6);}}
+        @keyframes balloonRise{0%{transform:translateY(0) rotate(-5deg);opacity:0;}10%{opacity:1;}90%{opacity:1;}100%{transform:translateY(-110vh) rotate(5deg);opacity:0;}}
+        @keyframes firework{0%{transform:scale(0);opacity:1;}50%{transform:scale(1);opacity:1;}100%{transform:scale(0) translateY(-30px);opacity:0;}}
+        @keyframes creditsScroll{0%{transform:translateY(0);}100%{transform:translateY(-100%);}}
+        @keyframes namePulse{0%,100%{transform:scale(1);}50%{transform:scale(1.03);}}
         .nb{background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);color:#e8f4f8;padding:10px 16px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:500;white-space:nowrap;}
         .nb:hover{background:rgba(0,212,106,0.2);border-color:#00d46a;}
         .nb.on{background:#00d46a;border-color:#00d46a;color:#0a1628;font-weight:700;}
@@ -687,6 +674,66 @@ export default function App() {
         </div>
       )}
 
+      {showEasterEgg&&(
+        <div onClick={()=>setShowEasterEgg(false)} style={{position:"fixed",inset:0,zIndex:4000,background:"linear-gradient(160deg,#0a1628 0%,#0d1f3a 60%,#0a1f1a 100%)",overflow:"hidden",cursor:"pointer"}}>
+          {Array.from({length:12}).map((_,i)=>(
+            <div key={i} style={{position:"absolute",left:`${(i*8.3+5)%100}%`,bottom:"-120px",fontSize:i%3===0?"52px":i%3===1?"44px":"36px",animation:`balloonRise ${6+i%4}s ease-in ${i*0.4}s infinite`,filter:"drop-shadow(0 4px 8px rgba(0,0,0,0.3))"}}>
+              {["🎈","🎉","🎊","🏆","⚽","🌟"][i%6]}
+            </div>
+          ))}
+          {Array.from({length:16}).map((_,i)=>(
+            <div key={i} style={{position:"absolute",left:`${10+(i*6.1)%80}%`,top:`${5+(i*7.3)%60}%`,width:i%2===0?6:4,height:i%2===0?6:4,borderRadius:"50%",background:["#ffd700","#ff006e","#00d46a","#3a86ff","#c77dff","#ff8c00","#00d4ff","#ff4040"][i%8],animation:`firework ${1.5+(i%4)*0.3}s ease-out ${i*0.25}s infinite`,boxShadow:`0 0 ${8+i%6}px 3px ${["#ffd700","#ff006e","#00d46a","#3a86ff","#c77dff","#ff8c00","#00d4ff","#ff4040"][i%8]}`}}/>
+          ))}
+          <div style={{position:"absolute",width:"100%",animation:"creditsScroll 50s linear infinite",paddingTop:"100vh"}}>
+            <div style={{textAlign:"center",padding:"0 32px"}}>
+              <div style={{fontSize:52,marginBottom:8}}>🏆</div>
+              <div style={{fontSize:28,fontWeight:900,color:"#ffd700",marginBottom:6,letterSpacing:"0.05em"}}>THANK YOU</div>
+              <div style={{fontSize:16,color:"#a0c8e0",marginBottom:48,lineHeight:1.6}}>From everyone at Progressive Lets<br/>This sweepstake was made with ❤️ for you</div>
+              <div style={{fontSize:11,fontWeight:700,color:"#6b9aad",textTransform:"uppercase",letterSpacing:"0.2em",marginBottom:24}}>⭐ Our Players ⭐</div>
+              {participants.map((p,i)=>(
+                <div key={p.id} style={{marginBottom:16,animation:`namePulse ${2+i%3}s ease-in-out ${i*0.2}s infinite`}}>
+                  <div style={{display:"inline-block",background:p.color,color:"#fff",fontSize:18,fontWeight:800,padding:"10px 28px",borderRadius:99,boxShadow:`0 0 30px ${p.color}88`,marginBottom:4}}>{p.name}</div>
+                  <div style={{fontSize:12,color:"#6b9aad",marginTop:4}}>{p.teams.map(t=>{const info=WC_TEAMS.find(x=>x.name===t);return `${info?.flag||""} ${t}`;}).join(" · ")}</div>
+                </div>
+              ))}
+              <div style={{height:60}}/>
+              <div style={{width:200,height:1,background:"rgba(255,215,0,0.3)",margin:"0 auto 60px"}}/>
+              <div style={{fontSize:11,fontWeight:700,color:"#6b9aad",textTransform:"uppercase",letterSpacing:"0.2em",marginBottom:32}}>📋 Build History</div>
+              {[
+                ["v1.0","The Beginning","Basic sweepstake — pick your teams, see the leaderboard"],
+                ["v1.1","Going Live","Live match scores and auto-refresh every 60 seconds"],
+                ["v1.2","Know Your Teams","Group standings with owner highlighting"],
+                ["v1.3","Head to Head","Player vs player comparison with win probability"],
+                ["v1.4","Feel the Pulse","Office Pulse dashboard — who's winning right now?"],
+                ["v1.5","Bracket Time","Knockout bracket with connector lines"],
+                ["v1.6","Admin Powers","Admin panel with PIN, tab toggles and roast messages"],
+                ["v1.7","Winner Winner","Tournament winner overlay with confetti and trophy"],
+                ["v1.8","Live Minutes","Calculated live match minutes from kickoff time"],
+                ["v1.9","FIFA Order","Round of 32 sorted to match the official FIFA bracket"],
+                ["v2.0","The Big Fix","Brazil finally sits where Brazil should sit 🇧🇷"],
+                ["v2.1","Thank You","This very credits screen you're reading right now ✨"],
+              ].map(([version,title,desc])=>(
+                <div key={version} style={{marginBottom:36,padding:"0 20px"}}>
+                  <div style={{display:"inline-block",background:"rgba(0,212,106,0.15)",border:"1px solid rgba(0,212,106,0.3)",color:"#00d46a",fontSize:11,fontWeight:700,padding:"3px 12px",borderRadius:99,marginBottom:8,letterSpacing:"0.1em"}}>{version}</div>
+                  <div style={{fontSize:17,fontWeight:700,color:"#e8f4f8",marginBottom:4}}>{title}</div>
+                  <div style={{fontSize:13,color:"#6b9aad",lineHeight:1.6}}>{desc}</div>
+                </div>
+              ))}
+              <div style={{height:60}}/>
+              <div style={{width:200,height:1,background:"rgba(255,215,0,0.3)",margin:"0 auto 60px"}}/>
+              <div style={{fontSize:42,marginBottom:16}}>⚽</div>
+              <div style={{fontSize:22,fontWeight:800,color:"#ffffff",marginBottom:8}}>Progressive Lets</div>
+              <div style={{fontSize:14,color:"#6b9aad",marginBottom:8}}>World Cup Sweepstake 2026</div>
+              <div style={{fontSize:13,color:"#4a6a7a",marginBottom:48}}>Built with React · Supabase · football-data.org · Vercel</div>
+              <div style={{fontSize:13,color:"#ffd700",fontWeight:600,marginBottom:8}}>🤖 Engineered with Claude AI</div>
+              <div style={{fontSize:12,color:"#4a6a7a",marginBottom:80}}>Many, many, many iterations later...</div>
+              <div style={{fontSize:32,marginBottom:16}}>🏆🎉🏆</div>
+              <div style={{fontSize:11,color:"rgba(255,255,255,0.2)",letterSpacing:"0.2em",marginBottom:200}}>TAP ANYWHERE TO CLOSE</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {liveMatches.length>0&&(
         <div style={{background:"rgba(239,68,68,0.12)",borderBottom:"1px solid rgba(239,68,68,0.3)",padding:"8px 16px",overflowX:"auto",whiteSpace:"nowrap"}}>
           <span style={{fontSize:11,fontWeight:700,color:"#ef4444",marginRight:12}}><span className="live-pulse" style={{marginRight:6}}/>LIVE</span>
@@ -728,7 +775,18 @@ export default function App() {
               </div>
             )}
             <div style={{...S.card,padding:"28px 24px",textAlign:"center",marginBottom:14}}>
-              <div style={{fontSize:34,marginBottom:10}}>⚽</div>
+              <div
+                style={{fontSize:34,marginBottom:10,cursor:"pointer",userSelect:"none"}}
+                onClick={()=>{
+                  setEasterEggTaps(t=>{
+                    const next=t+1;
+                    clearTimeout(easterEggTimer.current);
+                    easterEggTimer.current=setTimeout(()=>setEasterEggTaps(0),2000);
+                    if(next>=5){setShowEasterEgg(true);return 0;}
+                    return next;
+                  });
+                }}
+              >⚽</div>
               <h2 style={{fontSize:19,fontWeight:700,marginBottom:8}}>Welcome to the Sweepstake!</h2>
               <p style={{color:"#6b9aad",marginBottom:22,lineHeight:1.6,fontSize:14}}>Claim your teams, follow them live, highest combined points wins!</p>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:22}}>
