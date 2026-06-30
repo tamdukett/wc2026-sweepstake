@@ -461,6 +461,24 @@ export default function App() {
     const totalHeight = firstRoundCount*(CARD_H+16);
     const totalWidth = presentRounds.length*(CARD_W+COL_GAP)+16;
 
+    // Pre-compute the vertical centre Y for every match card in every round.
+    // Round 0 is evenly spaced; every later round's centre is the average of
+    // the pair of centres from the round before it. The connector lines and
+    // the card positions both read from this same array, so they always agree.
+    const round0Matches = sortMatches(knockoutMatches.filter(m=>m.stage===presentRounds[0]), presentRounds[0]);
+    const basePitch = totalHeight / round0Matches.length;
+    const centresByRound = [round0Matches.map((_,mi)=> basePitch*mi + basePitch/2)];
+    for (let r=1; r<presentRounds.length; r++) {
+      const prev = centresByRound[r-1];
+      const next = [];
+      for (let i=0; i<prev.length; i+=2) {
+        const a = prev[i];
+        const b = prev[i+1] !== undefined ? prev[i+1] : a;
+        next.push((a+b)/2);
+      }
+      centresByRound.push(next);
+    }
+
     const renderTeamRow = (team, score, won, lost, isLive, isDone) => {
       const name=team?.name;
       const flag=name?getFlag(name):null;
@@ -492,11 +510,8 @@ export default function App() {
           <svg style={{position:"absolute",top:0,left:0,width:totalWidth,height:totalHeight+40,pointerEvents:"none",overflow:"visible"}}>
             {presentRounds.map((key,ri) => {
               if (ri===presentRounds.length-1) return null;
-              const nextKey=presentRounds[ri+1];
-              const matches=sortMatches(knockoutMatches.filter(m=>m.stage===key),key);
-              const centres=matches.map((_,mi)=>{const pitch=totalHeight/matches.length;return pitch*mi+pitch/2;});
-              const nextMatches=sortMatches(knockoutMatches.filter(m=>m.stage===nextKey),nextKey);
-              const nextCentres=nextMatches.map((_,mi)=>{const pitch=totalHeight/nextMatches.length;return pitch*mi+pitch/2;});
+              const centres = centresByRound[ri];
+              const nextCentres = centresByRound[ri+1];
               const x1=ri*(CARD_W+COL_GAP)+CARD_W+20;
               const x2=(ri+1)*(CARD_W+COL_GAP)+20;
               return centres.map((c,i) => {
@@ -518,9 +533,9 @@ export default function App() {
           </svg>
 
           {presentRounds.map((key,ri) => {
-            const matches=sortMatches(knockoutMatches.filter(m=>m.stage===key),key);
-            const pitch=totalHeight/matches.length;
-            const colX=ri*(CARD_W+COL_GAP);
+            const matches = sortMatches(knockoutMatches.filter(m=>m.stage===key), key);
+            const centres = centresByRound[ri];
+            const colX = ri*(CARD_W+COL_GAP);
             return (
               <div key={key} style={{position:"absolute",left:colX,top:0,width:CARD_W}}>
                 <div style={{textAlign:"center",fontSize:9,fontWeight:700,color:"#6b9aad",textTransform:"uppercase",letterSpacing:"0.08em",height:20,display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -535,7 +550,7 @@ export default function App() {
                   const awayWon=isDone&&awayScore>homeScore;
                   const homeLost=isDone&&!homeWon&&!!m.homeTeam?.name;
                   const awayLost=isDone&&!awayWon&&!!m.awayTeam?.name;
-                  const cardTop=pitch*mi+pitch/2-CARD_H/2+20;
+                  const cardTop=(centres[mi]??(basePitch*mi+basePitch/2))-CARD_H/2+20;
                   const kickoff=m.utcDate?new Date(m.utcDate).toLocaleDateString("en-GB",{day:"numeric",month:"short"})+" "+new Date(m.utcDate).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}):"";
                   const liveMin=getLiveMinute(m);
                   return (
