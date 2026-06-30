@@ -113,6 +113,7 @@ const FIFA_R32_ORDER = [
   "Australia","Egypt",
   "Argentina","Cape Verde Islands",
 ];
+
 const sortMatches = (matchList, stage) => {
   if (stage !== "LAST_32") return [...matchList].sort((a,b) => new Date(a.utcDate)-new Date(b.utcDate));
   return [...matchList].sort((a,b) => {
@@ -124,6 +125,28 @@ const sortMatches = (matchList, stage) => {
       return Math.min(hi===-1?999:hi, ai===-1?999:ai);
     };
     return getOrder(a)-getOrder(b);
+  });
+};
+
+// Get a match's position in the FIFA R32 order (returns -1 if unknown)
+const getR32Idx = (m) => {
+  const home = m.homeTeam?.name || "";
+  const away = m.awayTeam?.name || "";
+  const hi = FIFA_R32_ORDER.findIndex(t => home.includes(t) || t.includes(home));
+  const ai = FIFA_R32_ORDER.findIndex(t => away.includes(t) || t.includes(away));
+  return hi !== -1 ? hi : ai;
+};
+
+// Sort R16+ matches by bracket position when teams are known, date otherwise
+const sortMatchesByBracket = (matchList, stage) => {
+  if (stage === "LAST_32") return sortMatches(matchList, stage);
+  return [...matchList].sort((a, b) => {
+    const ai = getR32Idx(a);
+    const bi = getR32Idx(b);
+    if (ai !== -1 && bi !== -1) return ai - bi;
+    if (ai !== -1) return ai < 16 ? -1 : 1;
+    if (bi !== -1) return bi < 16 ? 1 : -1;
+    return new Date(a.utcDate) - new Date(b.utcDate);
   });
 };
 
@@ -456,110 +479,11 @@ export default function App() {
       </div>
     );
 
-    const firstRoundCount = knockoutMatches.filter(m=>m.stage===presentRounds[0]).length;
-    const totalHeight = firstRoundCount*(CARD_H+16);
+    const firstRoundMatches = sortMatchesByBracket(knockoutMatches.filter(m=>m.stage===presentRounds[0]), presentRounds[0]);
+    const totalHeight = firstRoundMatches.length*(CARD_H+16);
     const totalWidth = presentRounds.length*(CARD_W+COL_GAP)+16;
 
-    // Simple, collision-proof positioning: every round's matches are sorted
-    // (FIFA order for R32, date order for later rounds) then evenly spaced
-    // top-to-bottom within totalHeight. No fixed slot math, so two matches
-    // can never land on the exact same position.
-    const getR32Idx = (m) => {
-      const home = m.homeTeam?.name || "";
-      const away = m.awayTeam?.name || "";
-      const hi = FIFA_R32_ORDER.findIndex(t => home.includes(t) || t.includes(home));
-      const ai = FIFA_R32_ORDER.findIndex(t => away.includes(t) || t.includes(away));
-      const found = hi !== -1 ? hi : ai;
-      return found;
-    };
-
-    const sortMatchesByBracket = (matchList, stage) => {
-      if (stage === "LAST_32") return sortMatches(matchList, stage);
-      return [...matchList].sort((a, b) => {
-        const ai = getR32Idx(a);
-        const bi = getR32Idx(b);
-        // Both known — sort by FIFA bracket position
-        if (ai !== -1 && bi !== -1) return ai - bi;
-        // One known, one unknown — known comes first if it's in top half, last if bottom half
-        if (ai !== -1) return ai < 16 ? -1 : 1;
-        if (bi !== -1) return bi < 16 ? 1 : -1;
-        // Both unknown — sort by date
-        return new Date(a.utcDate) - new Date(b.utcDate);
-      });
-    };
-
-    const getR32Idx = (m) => {
-      const home = m.homeTeam?.name || "";
-      const away = m.awayTeam?.name || "";
-      const hi = FIFA_R32_ORDER.findIndex(t => home.includes(t) || t.includes(home));
-      const ai = FIFA_R32_ORDER.findIndex(t => away.includes(t) || t.includes(away));
-      const found = hi !== -1 ? hi : ai;
-      return found;
-    };
-
-    const sortMatchesByBracket = (matchList, stage) => {
-      if (stage === "LAST_32") return sortMatches(matchList, stage);
-      return [...matchList].sort((a, b) => {
-        const ai = getR32Idx(a);
-        const bi = getR32Idx(b);
-        // Both known — sort by FIFA bracket position
-        if (ai !== -1 && bi !== -1) return ai - bi;
-        // One known, one unknown — known comes first if it's in top half, last if bottom half
-        if (ai !== -1) return ai < 16 ? -1 : 1;
-        if (bi !== -1) return bi < 16 ? 1 : -1;
-        // Both unknown — sort by date
-        return new Date(a.utcDate) - new Date(b.utcDate);
-      });
-    };
-
-    const getR32Idx = (m) => {
-      const home = m.homeTeam?.name || "";
-      const away = m.awayTeam?.name || "";
-      const hi = FIFA_R32_ORDER.findIndex(t => home.includes(t) || t.includes(home));
-      const ai = FIFA_R32_ORDER.findIndex(t => away.includes(t) || t.includes(away));
-      const found = hi !== -1 ? hi : ai;
-      return found;
-    };
-
-    const sortMatchesByBracket = (matchList, stage) => {
-      if (stage === "LAST_32") return sortMatches(matchList, stage);
-      return [...matchList].sort((a, b) => {
-        const ai = getR32Idx(a);
-        const bi = getR32Idx(b);
-        // Both known — sort by FIFA bracket position
-        if (ai !== -1 && bi !== -1) return ai - bi;
-        // One known, one unknown — known comes first if it's in top half, last if bottom half
-        if (ai !== -1) return ai < 16 ? -1 : 1;
-        if (bi !== -1) return bi < 16 ? 1 : -1;
-        // Both unknown — sort by date
-        return new Date(a.utcDate) - new Date(b.utcDate);
-      });
-    };
-
-    const getR32Idx = (m) => {
-      const home = m.homeTeam?.name || "";
-      const away = m.awayTeam?.name || "";
-      const hi = FIFA_R32_ORDER.findIndex(t => home.includes(t) || t.includes(home));
-      const ai = FIFA_R32_ORDER.findIndex(t => away.includes(t) || t.includes(away));
-      const found = hi !== -1 ? hi : ai;
-      return found;
-    };
-
-    const sortMatchesByBracket = (matchList, stage) => {
-      if (stage === "LAST_32") return sortMatches(matchList, stage);
-      return [...matchList].sort((a, b) => {
-        const ai = getR32Idx(a);
-        const bi = getR32Idx(b);
-        // Both known — sort by FIFA bracket position
-        if (ai !== -1 && bi !== -1) return ai - bi;
-        // One known, one unknown — known comes first if it's in top half, last if bottom half
-        if (ai !== -1) return ai < 16 ? -1 : 1;
-        if (bi !== -1) return bi < 16 ? 1 : -1;
-        // Both unknown — sort by date
-        return new Date(a.utcDate) - new Date(b.utcDate);
-      });
-    };
-
+    // Build centres for each round by evenly spacing sorted matches
     const centresByRound = presentRounds.map((key) => {
       const matches = sortMatchesByBracket(knockoutMatches.filter(m=>m.stage===key), key);
       const count = matches.length || 1;
@@ -621,16 +545,15 @@ export default function App() {
           </svg>
 
           {presentRounds.map((key,ri) => {
- const matches = sortMatchesByBracket(knockoutMatches.filter(m=>m.stage===key), key);
-      const centres = centresByRound[ri];
-  const colX = ri*(CARD_W+COL_GAP);
-  return (
-    <div key={key} style={{position:"absolute",left:colX,top:0,width:CARD_W}}>
-      <div style={{textAlign:"center",fontSize:9,fontWeight:700,color:"#6b9aad",textTransform:"uppercase",letterSpacing:"0.08em",height:20,display:"flex",alignItems:"center",justifyContent:"center"}}>
-        {ROUND_LABELS[key]}
-      </div>
-      {matches.map((m,mi) => {
-        const slotIdx = mi;
+            const matches = sortMatchesByBracket(knockoutMatches.filter(m=>m.stage===key), key);
+            const centres = centresByRound[ri];
+            const colX = ri*(CARD_W+COL_GAP);
+            return (
+              <div key={key} style={{position:"absolute",left:colX,top:0,width:CARD_W}}>
+                <div style={{textAlign:"center",fontSize:9,fontWeight:700,color:"#6b9aad",textTransform:"uppercase",letterSpacing:"0.08em",height:20,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                  {ROUND_LABELS[key]}
+                </div>
+                {matches.map((m,mi) => {
                   const isLive=["IN_PLAY","PAUSED","HALFTIME"].includes(m.status);
                   const isDone=m.status==="FINISHED";
                   const homeScore=m.score?.fullTime?.home;
@@ -639,7 +562,7 @@ export default function App() {
                   const awayWon=isDone&&awayScore>homeScore;
                   const homeLost=isDone&&!homeWon&&!!m.homeTeam?.name;
                   const awayLost=isDone&&!awayWon&&!!m.awayTeam?.name;
-                  const cardTop=(centres[slotIdx] ?? 0)-CARD_H/2+20;
+                  const cardTop=(centres[mi]??0)-CARD_H/2+20;
                   const kickoff=m.utcDate?new Date(m.utcDate).toLocaleDateString("en-GB",{day:"numeric",month:"short"})+" "+new Date(m.utcDate).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}):"";
                   const liveMin=getLiveMinute(m);
                   return (
