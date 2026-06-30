@@ -457,7 +457,7 @@ export default function App() {
     );
 
     const firstRoundCount = knockoutMatches.filter(m=>m.stage===presentRounds[0]).length;
-    const totalHeight = firstRoundCount*(CARD_H+16);
+    const totalHeight = 16*(CARD_H+16);
     const totalWidth = presentRounds.length*(CARD_W+COL_GAP)+16;
 
     // Every round has 16/(2^r) slots. Slot i in round r always covers R32 slots
