@@ -484,10 +484,14 @@ const centresByRound = presentRounds.map((key, r) => {
 // Map each match in each round to its correct fixed slot index
 const getSlotForMatch = (m, roundIndex) => {
   if (roundIndex === 0) return getR32SlotIndex(m);
-  // For later rounds, find by team name matching within the bracket
-  // Fall back to position in sorted list within this round
-  const matches = sortMatches(knockoutMatches.filter(x=>x.stage===presentRounds[roundIndex]), presentRounds[roundIndex]);
-  return matches.indexOf(m);
+  const home = m.homeTeam?.name || "";
+  const away = m.awayTeam?.name || "";
+  const hi = FIFA_R32_ORDER.findIndex(t => home.includes(t) || t.includes(home));
+  const ai = FIFA_R32_ORDER.findIndex(t => away.includes(t) || t.includes(away));
+  const idx = hi !== -1 ? hi : ai;
+  if (idx === -1) return 0;
+  // Each round halves the slot count: R32 slot -> R16 slot -> QF slot etc
+  return Math.floor(idx / Math.pow(2, roundIndex + 1));
 };
 
     const renderTeamRow = (team, score, won, lost, isLive, isDone) => {
@@ -553,7 +557,7 @@ const getSlotForMatch = (m, roundIndex) => {
         {ROUND_LABELS[key]}
       </div>
       {matches.map((m,mi) => {
-        const slotIdx = ri===0 ? getR32SlotIndex(m) : mi;
+        const slotIdx = ri===0 ? getR32SlotIndex(m) : getSlotForMatch(m, ri);
                   const isLive=["IN_PLAY","PAUSED","HALFTIME"].includes(m.status);
                   const isDone=m.status==="FINISHED";
                   const homeScore=m.score?.fullTime?.home;
